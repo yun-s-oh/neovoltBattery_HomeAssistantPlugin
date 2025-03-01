@@ -231,15 +231,54 @@ class ByteWattClient:
         _LOGGER.error(f"Failed to get grid data after {max_retries} attempts")
         return None
 
-    def set_battery_settings(self, end_discharge="23:00", max_retries=5, retry_delay=1):
-        """Update battery settings with retry capability."""
+    def _get_current_battery_settings(self, max_retries=3, retry_delay=1):
+        """Get current battery settings to use as a base for updates."""
         if not self.access_token and not self.get_token():
-            return False
+            return None
         
-        url = f"{self.base_url}/api/Account/CustomUseESSSetting"
+        url = f"{self.base_url}/api/Account/GetCustomUseESSSetting"
         
-        # Prepare payload (using the same structure as in the original code)
-        payload = {
+        for attempt in range(max_retries):
+            try:
+                headers = self.set_auth_headers()
+                
+                _LOGGER.debug(f"Getting current battery settings attempt {attempt+1}/{max_retries}")
+                
+                response = self.session.get(url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    try:
+                        data = response.json()
+                        
+                        if "code" in data and data["code"] == 9007:
+                            _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {data['info']}")
+                            time.sleep(retry_delay)
+                            continue
+                            
+                        if "data" in data:
+                            return data["data"]
+                        else:
+                            _LOGGER.error(f"Unexpected response format for battery settings: {data}")
+                    except Exception as e:
+                        _LOGGER.error(f"Error parsing battery settings: {e}")
+                elif response.status_code == 401:
+                    _LOGGER.info("Token expired, refreshing...")
+                    self.access_token = None
+                    if not self.get_token():
+                        _LOGGER.error("Failed to refresh token")
+                        return None
+                else:
+                    _LOGGER.error(f"Failed to get battery settings: HTTP {response.status_code}")
+                
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+            except Exception as e:
+                _LOGGER.error(f"Exception getting battery settings: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+        
+        # If we couldn't get current settings, return a default payload
+        return {
             "grid_charge": 1,
             "ctr_dis": 1,
             "bat_use_cap": 6,
@@ -248,7 +287,7 @@ class ByteWattClient:
             "time_chaf2a": "00:00",
             "time_chae2a": "00:00",
             "time_disf1a": "16:00",
-            "time_dise1a": end_discharge,
+            "time_dise1a": "23:00",
             "time_disf2a": "06:00",
             "time_dise2a": "10:00",
             "bat_high_cap": "100",
@@ -273,12 +312,19 @@ class ByteWattClient:
             "pm_offset_s2a": "00:00",
             "pm_offset_e2a": "00:00"
         }
+
+    def _update_battery_settings(self, payload, max_retries=5, retry_delay=1):
+        """Update battery settings with the given payload."""
+        if not self.access_token and not self.get_token():
+            return False
+        
+        url = f"{self.base_url}/api/Account/CustomUseESSSetting"
         
         for attempt in range(max_retries):
             try:
                 headers = self.set_auth_headers()
                 
-                _LOGGER.debug(f"Battery settings request attempt {attempt+1}/{max_retries}")
+                _LOGGER.debug(f"Battery settings update attempt {attempt+1}/{max_retries}")
                 
                 response = self.session.post(url, json=payload, headers=headers, timeout=10)
                 
@@ -287,33 +333,113 @@ class ByteWattClient:
                         data = response.json()
                         
                         if "Success" in str(data):
-                            _LOGGER.info(f"Successfully updated battery settings to end discharge at {end_discharge}")
+                            _LOGGER.info(f"Successfully updated battery settings")
                             return True
                         elif "code" in data and data["code"] == 9007:
                             _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {data['info']}")
-                            # Server is reporting a network issue, let's retry
                             time.sleep(retry_delay)
                             continue
                         else:
                             _LOGGER.error(f"Unexpected response when setting battery parameters: {data}")
                     except Exception as e:
-                        _LOGGER.error(f"Error parsing settings response (attempt {attempt+1}/{max_retries}): {e}")
+                        _LOGGER.error(f"Error parsing settings response: {e}")
                 elif response.status_code == 401:
-                    _LOGGER.info("Token expired, refreshing...")
+                    _LOGGER.info("Token expired,  refreshing...")
                     self.access_token = None
                     if not self.get_token():
                         _LOGGER.error("Failed to refresh token")
                         return False
                 else:
-                    _LOGGER.error(f"Failed to update settings: HTTP {response.status_code} (attempt {attempt+1}/{max_retries})")
+                    _LOGGER.error(f"Failed to update settings: HTTP {response.status_code}")
                 
-                # Wait before retrying
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
             except Exception as e:
-                _LOGGER.error(f"Exception during settings request (attempt {attempt+1}/{max_retries}): {e}")
+                _LOGGER.error(f"Exception during settings update: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
         
         _LOGGER.error(f"Failed to update battery settings after {max_retries} attempts")
         return False
+
+    def set_battery_settings(self, end_discharge="23:00", max_retries=5, retry_delay=1):
+        """Update battery settings with retry capability."""
+        # Get current settings to use as a base
+        current_settings = self._get_current_battery_settings()
+        if not current_settings:
+            _LOGGER.error("Failed to get current battery settings")
+            return False
+        
+        # Update only the end_discharge time
+        current_settings["time_dise1a"] = end_discharge
+        
+        # Send the updated settings
+        return self._update_battery_settings(current_settings, max_retries, retry_delay)
+
+    def set_discharge_start_time(self, start_discharge, max_retries=5, retry_delay=1):
+        """Set the start time for battery discharge (time_disf1a)."""
+        # Get current settings to use as a base
+        current_settings = self._get_current_battery_settings()
+        if not current_settings:
+            _LOGGER.error("Failed to get current battery settings")
+            return False
+        
+        # Update only the discharge start time
+        current_settings["time_disf1a"] = start_discharge
+        
+        # Send the updated settings
+        success = self._update_battery_settings(current_settings, max_retries, retry_delay)
+        if success:
+            _LOGGER.info(f"Successfully set discharge start time to {start_discharge}")
+        return success
+
+    def set_discharge_end_time(self, end_discharge, max_retries=5, retry_delay=1):
+        """Set the end time for battery discharge (time_dise1a)."""
+        # Get current settings to use as a base
+        current_settings = self._get_current_battery_settings()
+        if not current_settings:
+            _LOGGER.error("Failed to get current battery settings")
+            return False
+        
+        # Update only the discharge end time
+        current_settings["time_dise1a"] = end_discharge
+        
+        # Send the updated settings
+        success = self._update_battery_settings(current_settings, max_retries, retry_delay)
+        if success:
+            _LOGGER.info(f"Successfully set discharge end time to {end_discharge}")
+        return success
+
+    def set_grid_charge_start_time(self, start_grid_charge, max_retries=5, retry_delay=1):
+        """Set the start time for grid charging (time_chaf1a)."""
+        # Get current settings to use as a base
+        current_settings = self._get_current_battery_settings()
+        if not current_settings:
+            _LOGGER.error("Failed to get current battery settings")
+            return False
+        
+        # Update only the grid charge start time
+        current_settings["time_chaf1a"] = start_grid_charge
+        
+        # Send the updated settings
+        success = self._update_battery_settings(current_settings, max_retries, retry_delay)
+        if success:
+            _LOGGER.info(f"Successfully set grid charge start time to {start_grid_charge}")
+        return success
+
+    def set_grid_charge_end_time(self, end_grid_charge, max_retries=5, retry_delay=1):
+        """Set the end time for grid charging (time_chae1a)."""
+        # Get current settings to use as a base
+        current_settings = self._get_current_battery_settings()
+        if not current_settings:
+            _LOGGER.error("Failed to get current battery settings")
+            return False
+        
+        # Update only the grid charge end time
+        current_settings["time_chae1a"] = end_grid_charge
+        
+        # Send the updated settings
+        success = self._update_battery_settings(current_settings, max_retries, retry_delay)
+        if success:
+            _LOGGER.info(f"Successfully set grid charge end time to {end_grid_charge}")
+        return success
