@@ -1,11 +1,12 @@
 {
   "domain": "bytewatt",
   "name": "Byte-Watt Battery Monitor",
-  "documentation": "https://github.com/username/bytewatt",
+  "documentation": "https://github.com/candreacchio/neovoltBattery_HomeAssistantPlugin",
+  "issue_tracker": "https://github.com/candreacchio/neovoltBattery_HomeAssistantPlugin/issues",
   "dependencies": [],
-  "codeowners": [],
+  "codeowners": ["@candreacchio"],
   "requirements": ["requests"],
   "iot_class": "cloud_polling",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "config_flow": true
 }

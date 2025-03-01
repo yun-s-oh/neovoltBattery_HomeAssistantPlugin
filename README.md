@@ -1,1 +1,101 @@
-Bytewatt Neovolt Battery Implementation into Home Assistant.
+# Byte-Watt Battery Monitor Integration for Home Assistant
+
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
+
+This integration allows you to monitor and control your Byte-Watt battery system through Home Assistant.
+
+## Features
+
+- **Battery Monitoring**:
+  - Battery percentage
+  - Power flow (grid, house, battery, PV)
+  - Energy statistics
+
+- **Battery Control**:
+  - Set charge times (start/end)
+  - Set discharge times (start/end)
+  - Set minimum battery SOC
+
+## Installation
+
+### HACS Installation (Recommended)
+
+1. Make sure you have [HACS](https://hacs.xyz/) installed
+2. Add this repository as a custom repository in HACS:
+   - Go to HACS → Integrations
+   - Click the three dots in the top right corner
+   - Select "Custom repositories"
+   - Add the URL of this repository
+   - Category: Integration
+3. Click "Install" on the Byte-Watt Battery Monitor integration
+4. Restart Home Assistant
+5. Add the integration:
+   - Go to Configuration → Integrations
+   - Click "Add Integration"
+   - Search for "Byte-Watt Battery Monitor"
+
+### Manual Installation
+
+1. Copy the `custom_components/bytewatt` directory to your Home Assistant `custom_components` directory
+2. Restart Home Assistant
+3. Add the integration through Configuration → Integrations
+
+## Configuration
+
+During setup, you'll need to provide:
+- Username (email)
+- Password
+- Update interval (minimum 30 seconds)
+
+## Services
+
+The integration provides several services for controlling your battery:
+
+- `bytewatt.set_discharge_start_time`: Set when battery discharge begins
+- `bytewatt.set_discharge_time`: Set when battery discharge ends
+- `bytewatt.set_charge_start_time`: Set when battery charging begins  
+- `bytewatt.set_charge_end_time`: Set when battery charging ends
+- `bytewatt.set_minimum_soc`: Set the minimum battery level to maintain
+- `bytewatt.update_battery_settings`: Update multiple settings at once
+
+## Example Automations
+
+```yaml
+# Set different battery settings based on electricity prices
+automation:
+  - alias: "Peak Price Battery Settings"
+    trigger:
+      platform: state
+      entity_id: sensor.electricity_price_tier
+      to: 'peak'
+    action:
+      service: bytewatt.update_battery_settings
+      data:
+        start_discharge: "17:00"
+        end_discharge: "22:00" 
+        minimum_soc: 20
+        
+  - alias: "Off-Peak Charging"
+    trigger:
+      platform: state
+      entity_id: sensor.electricity_price_tier
+      to: 'off_peak'
+    action:
+      service: bytewatt.update_battery_settings
+      data:
+        start_charge: "01:00"
+        end_charge: "05:00"
+```
+
+## Troubleshooting
+
+- **Network Errors**: The integration has retry logic built-in to handle temporary network issues with the Byte-Watt API
+- **Time Format Issues**: The integration automatically handles various time formats and normalizes them to HH:MM
+
+## Support
+
+For issues, feature requests, or questions, please open an issue on GitHub.
+
+## Credits
+
+This integration was created with the help of the Home Assistant community and Claude AI.
