@@ -1,0 +1,11 @@
+{
+  "domain": "bytewatt",
+  "name": "Byte-Watt Battery Monitor",
+  "documentation": "https://github.com/username/bytewatt",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": ["requests"],
+  "iot_class": "cloud_polling",
+  "version": "0.1.0",
+  "config_flow": true
+}

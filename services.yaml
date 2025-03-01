@@ -1,0 +1,11 @@
+set_discharge_time:
+  name: Set Discharge Time
+  description: Set the end discharge time for the battery
+  fields:
+    end_discharge:
+      name: End Discharge Time
+      description: The time when battery discharge should end (format HH:MM)
+      example: "23:00"
+      required: true
+      selector:
+        time: {}
