@@ -1,8 +1,9 @@
 """Sensor platform for Byte-Watt integration."""
 import logging
 from typing import Callable, Dict, Optional
+from datetime import datetime
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
@@ -110,14 +111,14 @@ async def async_setup_entry(
         ),
     ]
     
-    # Define grid stats sensors
+    # Define grid stats sensors - modified to use "energy" device_class for kWh sensors
     grid_sensors = [
         ByteWattGridSensor(
             coordinator, 
             entry, 
             SENSOR_TOTAL_SOLAR, 
             "Total Solar Generation", 
-            "energy", 
+            "energy",  # Changed to "energy" for Energy Dashboard
             "Total_Solar_Generation", 
             "kWh", 
             "mdi:solar-power"
@@ -127,7 +128,7 @@ async def async_setup_entry(
             entry, 
             SENSOR_TOTAL_FEED_IN, 
             "Total Feed In", 
-            "energy", 
+            "energy",  # Changed to "energy" for Energy Dashboard
             "Total_Feed_In", 
             "kWh", 
             "mdi:transmission-tower-export"
@@ -137,7 +138,7 @@ async def async_setup_entry(
             entry, 
             SENSOR_TOTAL_BATTERY_CHARGE, 
             "Total Battery Charge", 
-            "energy", 
+            "energy",  # Changed to "energy" for Energy Dashboard
             "Total_Battery_Charge", 
             "kWh", 
             "mdi:battery-charging"
@@ -147,7 +148,7 @@ async def async_setup_entry(
             entry, 
             SENSOR_PV_POWER_HOUSE, 
             "PV Power to House", 
-            "energy", 
+            "energy",  # Changed to "energy" for Energy Dashboard
             "PV_Power_House", 
             "kWh", 
             "mdi:solar-power-variant"
@@ -157,7 +158,7 @@ async def async_setup_entry(
             entry, 
             SENSOR_PV_CHARGING_BATTERY, 
             "PV Charging Battery", 
-            "energy", 
+            "energy",  # Changed to "energy" for Energy Dashboard
             "PV_Charging_Battery", 
             "kWh", 
             "mdi:solar-power-variant-outline"
@@ -167,7 +168,7 @@ async def async_setup_entry(
             entry, 
             SENSOR_TOTAL_HOUSE_CONSUMPTION, 
             "Total House Consumption", 
-            "energy", 
+            "energy",  # Changed to "energy" for Energy Dashboard
             "Total_House_Consumption", 
             "kWh", 
             "mdi:home-lightning-bolt"
@@ -177,7 +178,7 @@ async def async_setup_entry(
             entry, 
             SENSOR_GRID_BATTERY_CHARGE, 
             "Grid Based Battery Charge", 
-            "energy", 
+            "energy",  # Changed to "energy" for Energy Dashboard
             "Grid_Based_Battery_Charge", 
             "kWh", 
             "mdi:transmission-tower-import"
@@ -187,7 +188,7 @@ async def async_setup_entry(
             entry, 
             SENSOR_GRID_POWER_CONSUMPTION, 
             "Grid Power Consumption", 
-            "energy", 
+            "energy",  # Changed to "energy" for Energy Dashboard
             "Grid_Power_Consumption", 
             "kWh", 
             "mdi:transmission-tower"
@@ -304,6 +305,34 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
 
 class ByteWattGridSensor(ByteWattSensor):
     """Representation of a Byte-Watt Grid Sensor."""
+
+    def __init__(
+        self,
+        coordinator,
+        config_entry,
+        sensor_type,
+        name,
+        device_class,
+        attribute,
+        unit,
+        icon,
+        entity_category=None,
+    ):
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator, 
+            config_entry, 
+            sensor_type, 
+            name, 
+            device_class, 
+            attribute, 
+            unit, 
+            icon,
+            entity_category
+        )
+        # Add state_class for energy sensors (kWh)
+        if unit == "kWh":
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     @property
     def native_value(self):
