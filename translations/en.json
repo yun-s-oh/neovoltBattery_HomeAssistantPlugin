@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Byte-Watt Battery Monitor",
+        "description": "Set up your Byte-Watt battery monitoring system",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "scan_interval": "Scan Interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "auth": "Authentication failed. Please check your credentials."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Byte-Watt Options",
+        "description": "Configure the Byte-Watt integration",
+        "data": {
+          "scan_interval": "Scan Interval (seconds)"
+        }
+      }
+    }
+  }
+}
