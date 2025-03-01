@@ -14,7 +14,16 @@ MIN_SCAN_INTERVAL = 30  # 30 seconds
 
 # Service
 SERVICE_SET_DISCHARGE_TIME = "set_discharge_time"
+SERVICE_SET_DISCHARGE_START_TIME = "set_discharge_start_time"
+SERVICE_SET_DISCHARGE_END_TIME = "set_discharge_end_time"
+SERVICE_SET_GRID_CHARGE_START_TIME = "set_grid_charge_start_time"
+SERVICE_SET_GRID_CHARGE_END_TIME = "set_grid_charge_end_time"
+
+# Attributes
 ATTR_END_DISCHARGE = "end_discharge"
+ATTR_START_DISCHARGE = "start_discharge"
+ATTR_START_GRID_CHARGE = "start_grid_charge"
+ATTR_END_GRID_CHARGE = "end_grid_charge"
 
 # Sensor types
 SENSOR_SOC = "soc"

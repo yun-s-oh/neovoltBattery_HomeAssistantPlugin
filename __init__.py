@@ -18,7 +18,14 @@ from .const import (
     CONF_PASSWORD,
     DEFAULT_SCAN_INTERVAL,
     SERVICE_SET_DISCHARGE_TIME,
+    SERVICE_SET_DISCHARGE_START_TIME,
+    SERVICE_SET_DISCHARGE_END_TIME,
+    SERVICE_SET_GRID_CHARGE_START_TIME,
+    SERVICE_SET_GRID_CHARGE_END_TIME,
     ATTR_END_DISCHARGE,
+    ATTR_START_DISCHARGE,
+    ATTR_START_GRID_CHARGE,
+    ATTR_END_GRID_CHARGE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -69,12 +76,120 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             else:
                 _LOGGER.error(f"Failed to set discharge time to {end_discharge}")
 
+    # Register the service to set discharge start time
+    async def handle_set_discharge_start_time(call: ServiceCall):
+        """Handle the service call to set discharge start time."""
+        start_discharge = call.data.get(ATTR_START_DISCHARGE)
+        if not start_discharge:
+            _LOGGER.error("No start_discharge time provided")
+            return
+
+        for entry_id, entry_data in hass.data[DOMAIN].items():
+            client = entry_data["client"]
+            success = await hass.async_add_executor_job(
+                client.set_discharge_start_time, start_discharge
+            )
+            if success:
+                _LOGGER.info(f"Successfully set discharge start time to {start_discharge}")
+            else:
+                _LOGGER.error(f"Failed to set discharge start time to {start_discharge}")
+
+    # Register the service to set discharge end time
+    async def handle_set_discharge_end_time(call: ServiceCall):
+        """Handle the service call to set discharge end time."""
+        end_discharge = call.data.get(ATTR_END_DISCHARGE)
+        if not end_discharge:
+            _LOGGER.error("No end_discharge time provided")
+            return
+
+        for entry_id, entry_data in hass.data[DOMAIN].items():
+            client = entry_data["client"]
+            success = await hass.async_add_executor_job(
+                client.set_discharge_end_time, end_discharge
+            )
+            if success:
+                _LOGGER.info(f"Successfully set discharge end time to {end_discharge}")
+            else:
+                _LOGGER.error(f"Failed to set discharge end time to {end_discharge}")
+
+    # Register the service to set grid charge start time
+    async def handle_set_grid_charge_start_time(call: ServiceCall):
+        """Handle the service call to set grid charge start time."""
+        start_grid_charge = call.data.get(ATTR_START_GRID_CHARGE)
+        if not start_grid_charge:
+            _LOGGER.error("No start_grid_charge time provided")
+            return
+
+        for entry_id, entry_data in hass.data[DOMAIN].items():
+            client = entry_data["client"]
+            success = await hass.async_add_executor_job(
+                client.set_grid_charge_start_time, start_grid_charge
+            )
+            if success:
+                _LOGGER.info(f"Successfully set grid charge start time to {start_grid_charge}")
+            else:
+                _LOGGER.error(f"Failed to set grid charge start time to {start_grid_charge}")
+
+    # Register the service to set grid charge end time
+    async def handle_set_grid_charge_end_time(call: ServiceCall):
+        """Handle the service call to set grid charge end time."""
+        end_grid_charge = call.data.get(ATTR_END_GRID_CHARGE)
+        if not end_grid_charge:
+            _LOGGER.error("No end_grid_charge time provided")
+            return
+
+        for entry_id, entry_data in hass.data[DOMAIN].items():
+            client = entry_data["client"]
+            success = await hass.async_add_executor_job(
+                client.set_grid_charge_end_time, end_grid_charge
+            )
+            if success:
+                _LOGGER.info(f"Successfully set grid charge end time to {end_grid_charge}")
+            else:
+                _LOGGER.error(f"Failed to set grid charge end time to {end_grid_charge}")
+
     hass.services.async_register(
         DOMAIN, 
         SERVICE_SET_DISCHARGE_TIME,
         handle_set_discharge_time,
         schema=vol.Schema({
             vol.Required(ATTR_END_DISCHARGE): cv.string,
+        })
+    )
+
+    hass.services.async_register(
+        DOMAIN, 
+        SERVICE_SET_DISCHARGE_START_TIME,
+        handle_set_discharge_start_time,
+        schema=vol.Schema({
+            vol.Required(ATTR_START_DISCHARGE): cv.string,
+        })
+    )
+
+    hass.services.async_register(
+        DOMAIN, 
+        SERVICE_SET_DISCHARGE_END_TIME,
+        handle_set_discharge_end_time,
+        schema=vol.Schema({
+            vol.Required(ATTR_END_DISCHARGE): cv.string,
+        })
+    )
+
+    hass.services.async_register(
+        DOMAIN, 
+        SERVICE_SET_GRID_CHARGE_START_TIME,
+        handle_set_grid_charge_start_time,
+        schema=vol.Schema({
+            vol.Required(ATTR_START_GRID_CHARGE): cv.string,
+        })
+    )
+
+    hass.services.async_register(
+        DOMAIN, 
+        SERVICE_SET_GRID_CHARGE_END_TIME,
+        handle_set_grid_charge_end_time,
+        schema=vol.Schema({
+            vol.Required(ATTR_END_GRID_CHARGE): cv.string,
         })
     )
 
