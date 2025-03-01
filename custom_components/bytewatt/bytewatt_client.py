@@ -288,11 +288,9 @@ class ByteWattClient:
         """Get Grid data from the API with retry capability."""
         if not self.access_token and not self.get_token():
             return None
+
         
-        # Using current date for beginDay, and a far future date for endDay
-        today = datetime.now().strftime("%Y-%m-%d")
-        
-        url = f"{self.base_url}/api/Power/SticsByPeriod?beginDay={today}&endDay=2030-08-30&SN=&noLoading=true"
+        url = f"{self.base_url}/api/Power/SticsByPeriod?beginDay=2020-01-01&endDay=2035-08-30&SN=&noLoading=true"
         
         for attempt in range(max_retries):
             try:
