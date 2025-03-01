@@ -28,6 +28,11 @@ from .const import (
     SENSOR_TOTAL_HOUSE_CONSUMPTION,
     SENSOR_GRID_BATTERY_CHARGE,
     SENSOR_GRID_POWER_CONSUMPTION,
+    SENSOR_DISCHARGE_START,
+    SENSOR_DISCHARGE_END,
+    SENSOR_CHARGE_START,
+    SENSOR_CHARGE_END,
+    SENSOR_MIN_SOC,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -189,7 +194,61 @@ async def async_setup_entry(
         ),
     ]
     
-    async_add_entities(soc_sensors + grid_sensors)
+    # Define battery settings sensors
+    battery_settings_sensors = [
+        ByteWattBatterySettingsSensor(
+            coordinator, 
+            entry, 
+            SENSOR_DISCHARGE_START, 
+            "Discharge Start Time", 
+            "timestamp", 
+            "time_disf1a", 
+            "", 
+            "mdi:battery-minus"
+        ),
+        ByteWattBatterySettingsSensor(
+            coordinator, 
+            entry, 
+            SENSOR_DISCHARGE_END, 
+            "Discharge End Time", 
+            "timestamp", 
+            "time_dise1a", 
+            "", 
+            "mdi:battery-minus-outline"
+        ),
+        ByteWattBatterySettingsSensor(
+            coordinator, 
+            entry, 
+            SENSOR_CHARGE_START, 
+            "Charge Start Time", 
+            "timestamp", 
+            "time_chaf1a", 
+            "", 
+            "mdi:battery-plus"
+        ),
+        ByteWattBatterySettingsSensor(
+            coordinator, 
+            entry, 
+            SENSOR_CHARGE_END, 
+            "Charge End Time", 
+            "timestamp", 
+            "time_chae1a", 
+            "", 
+            "mdi:battery-plus-outline"
+        ),
+        ByteWattBatterySettingsSensor(
+            coordinator, 
+            entry, 
+            SENSOR_MIN_SOC, 
+            "Minimum SOC", 
+            "battery", 
+            "bat_use_cap", 
+            "%", 
+            "mdi:battery-low"
+        ),
+    ]
+    
+    async_add_entities(soc_sensors + grid_sensors + battery_settings_sensors)
 
 
 class ByteWattSensor(CoordinatorEntity, SensorEntity):
@@ -257,4 +316,22 @@ class ByteWattGridSensor(ByteWattSensor):
             return grid_data.get(self._attribute)
         except Exception as ex:
             _LOGGER.error(f"Error getting grid sensor state: {ex}")
+            return None
+
+
+class ByteWattBatterySettingsSensor(ByteWattSensor):
+    """Representation of a Byte-Watt Battery Settings Sensor."""
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            settings = client._settings_cache
+            
+            if settings:
+                return settings.get(self._attribute)
+            return None
+        except Exception as ex:
+            _LOGGER.error(f"Error getting battery settings sensor state: {ex}")
             return None

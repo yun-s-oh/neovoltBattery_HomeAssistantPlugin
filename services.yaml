@@ -1,6 +1,8 @@
+# Service definitions for the Byte-Watt integration
+
 set_discharge_time:
-  name: Set Discharge Time
-  description: Set the end discharge time for the battery
+  name: Set Discharge End Time
+  description: Set the end time for battery discharge (legacy service)
   fields:
     end_discharge:
       name: End Discharge Time
@@ -12,48 +14,96 @@ set_discharge_time:
 
 set_discharge_start_time:
   name: Set Discharge Start Time
-  description: Set the start time for battery discharge (time_disf1a)
+  description: Set the start time for battery discharge
   fields:
     start_discharge:
       name: Start Discharge Time
       description: The time when battery discharge should start (format HH:MM)
-      example: "17:00"
+      example: "16:00"
       required: true
       selector:
         time: {}
 
-set_discharge_end_time:
-  name: Set Discharge End Time
-  description: Set the end time for battery discharge (time_dise1a)
+set_charge_start_time:
+  name: Set Charge Start Time
+  description: Set the start time for battery charging
   fields:
+    start_charge:
+      name: Start Charge Time
+      description: The time when battery charging should start (format HH:MM)
+      example: "14:30"
+      required: true
+      selector:
+        time: {}
+
+set_charge_end_time:
+  name: Set Charge End Time
+  description: Set the end time for battery charging
+  fields:
+    end_charge:
+      name: End Charge Time
+      description: The time when battery charging should end (format HH:MM)
+      example: "16:00"
+      required: true
+      selector:
+        time: {}
+
+set_minimum_soc:
+  name: Set Minimum SOC
+  description: Set the minimum battery state of charge percentage
+  fields:
+    minimum_soc:
+      name: Minimum SOC
+      description: The minimum battery state of charge to maintain (1-100%)
+      example: 10
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+update_battery_settings:
+  name: Update Battery Settings
+  description: Update multiple battery settings at once
+  fields:
+    start_discharge:
+      name: Start Discharge Time
+      description: The time when battery discharge should start (format HH:MM)
+      example: "16:00"
+      required: false
+      selector:
+        time: {}
     end_discharge:
       name: End Discharge Time
       description: The time when battery discharge should end (format HH:MM)
       example: "23:00"
-      required: true
+      required: false
       selector:
         time: {}
-
-set_grid_charge_start_time:
-  name: Set Grid Charge Start Time
-  description: Set the start time for grid charging (time_chaf1a)
-  fields:
-    start_grid_charge:
-      name: Start Grid Charge Time
-      description: The time when grid charging should start (format HH:MM)
-      example: "01:00"
-      required: true
+    start_charge:
+      name: Start Charge Time
+      description: The time when battery charging should start (format HH:MM)
+      example: "14:30"
+      required: false
       selector:
         time: {}
-
-set_grid_charge_end_time:
-  name: Set Grid Charge End Time
-  description: Set the end time for grid charging (time_chae1a)
-  fields:
-    end_grid_charge:
-      name: End Grid Charge Time
-      description: The time when grid charging should end (format HH:MM)
-      example: "06:00"
-      required: true
+    end_charge:
+      name: End Charge Time
+      description: The time when battery charging should end (format HH:MM)
+      example: "16:00"
+      required: false
       selector:
         time: {}
+    minimum_soc:
+      name: Minimum SOC
+      description: The minimum battery state of charge to maintain (1-100%)
+      example: 10
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"

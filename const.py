@@ -6,24 +6,25 @@ DOMAIN = "bytewatt"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_SCAN_INTERVAL = "scan_interval"
-CONF_END_DISCHARGE = "end_discharge"
 
 # Defaults
 DEFAULT_SCAN_INTERVAL = 60  # 1 minute
 MIN_SCAN_INTERVAL = 30  # 30 seconds
 
-# Service
-SERVICE_SET_DISCHARGE_TIME = "set_discharge_time"
+# Services
+SERVICE_SET_DISCHARGE_TIME = "set_discharge_time"  # Legacy service
 SERVICE_SET_DISCHARGE_START_TIME = "set_discharge_start_time"
-SERVICE_SET_DISCHARGE_END_TIME = "set_discharge_end_time"
-SERVICE_SET_GRID_CHARGE_START_TIME = "set_grid_charge_start_time"
-SERVICE_SET_GRID_CHARGE_END_TIME = "set_grid_charge_end_time"
+SERVICE_SET_CHARGE_START_TIME = "set_charge_start_time"
+SERVICE_SET_CHARGE_END_TIME = "set_charge_end_time"
+SERVICE_SET_MINIMUM_SOC = "set_minimum_soc"
+SERVICE_UPDATE_BATTERY_SETTINGS = "update_battery_settings"
 
-# Attributes
+# Service attributes
 ATTR_END_DISCHARGE = "end_discharge"
 ATTR_START_DISCHARGE = "start_discharge"
-ATTR_START_GRID_CHARGE = "start_grid_charge"
-ATTR_END_GRID_CHARGE = "end_grid_charge"
+ATTR_START_CHARGE = "start_charge"
+ATTR_END_CHARGE = "end_charge"
+ATTR_MINIMUM_SOC = "minimum_soc"
 
 # Sensor types
 SENSOR_SOC = "soc"
@@ -32,6 +33,13 @@ SENSOR_HOUSE_CONSUMPTION = "house_consumption"
 SENSOR_BATTERY_POWER = "battery_power"
 SENSOR_PV = "pv_power"
 SENSOR_LAST_UPDATE = "last_update"
+
+# Battery settings sensor types
+SENSOR_DISCHARGE_START = "discharge_start_time"
+SENSOR_DISCHARGE_END = "discharge_end_time"
+SENSOR_CHARGE_START = "charge_start_time"
+SENSOR_CHARGE_END = "charge_end_time"
+SENSOR_MIN_SOC = "minimum_soc"
 
 # Grid stats sensor types
 SENSOR_TOTAL_SOLAR = "total_solar_generation"

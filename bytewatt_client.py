@@ -1,4 +1,4 @@
-"""Byte-Watt API client with pure dynamic authentication signature generation."""
+"""Byte-Watt API client with dynamic authentication and extended battery settings."""
 import requests
 import json
 import time
@@ -8,7 +8,7 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 class ByteWattClient:
-    """Client for interacting with the Byte-Watt API with dynamic authentication."""
+    """Client for interacting with the Byte-Watt API with extended battery settings."""
     
     def __init__(self, username, password):
         """Initialize with login credentials."""
@@ -21,6 +21,43 @@ class ByteWattClient:
         # For signature generation
         self.prefix = "al8e4s"
         self.suffix = "ui893ed"
+        
+        # Cache for battery settings
+        self._settings_cache = {
+            "grid_charge": 1,
+            "ctr_dis": 1,
+            "bat_use_cap": 6,  # Minimum remaining SOC
+            "time_chaf1a": "14:30",  # Charge start time
+            "time_chae1a": "16:00",  # Charge end time
+            "time_chaf2a": "00:00",
+            "time_chae2a": "00:00",
+            "time_disf1a": "16:00",  # Discharge start time
+            "time_dise1a": "23:00",  # Discharge end time
+            "time_disf2a": "06:00",
+            "time_dise2a": "10:00",
+            "bat_high_cap": "100",
+            "time_cha_fwe1a": "00:00",
+            "time_cha_ewe1a": "00:00",
+            "time_cha_fwe2a": "00:00",
+            "time_cha_ewe2a": "00:00",
+            "time_dis_fwe1a": "00:00",
+            "time_dis_ewe1a": "00:00",
+            "time_dis_fwe2a": "00:00",
+            "time_dis_ewe2a": "00:00",
+            "peak_s1a": "00:00",
+            "peak_e1a": "00:00",
+            "peak_s2a": "00:00",
+            "peak_e2a": "00:00",
+            "fill_s1a": "00:00",
+            "fill_e1a": "00:00",
+            "fill_s2a": "00:00",
+            "fill_e2a": "00:00",
+            "pm_offset_s1a": "00:00",
+            "pm_offset_e1a": "00:00",
+            "pm_offset_s2a": "00:00",
+            "pm_offset_e2a": "00:00"
+        }
+        self._settings_loaded = False
     
     def get_auth_signature(self, is_login=False):
         """
@@ -36,7 +73,6 @@ class ByteWattClient:
         modifier = 'd' if is_login else 'e'
         
         # Create a pattern for the middle part (128 characters)
-        # We'll use a simple repeating pattern of hexadecimal digits
         middle_part = ""
         for i in range(128):
             # Simple pattern that creates a pseudo-random but consistent string
@@ -64,7 +100,6 @@ class ByteWattClient:
             }
             
             _LOGGER.debug(f"Sending login request with dynamic signature")
-            _LOGGER.debug(f"Signature: {auth_signature[:15]}...{auth_signature[-15:]}")
             
             response = self.session.post(login_url, json=payload, headers=headers)
             
@@ -231,102 +266,103 @@ class ByteWattClient:
         _LOGGER.error(f"Failed to get grid data after {max_retries} attempts")
         return None
 
-    def _get_current_battery_settings(self, max_retries=3, retry_delay=1):
-        """Get current battery settings to use as a base for updates."""
-        if not self.access_token and not self.get_token():
-            return None
+    def get_current_settings(self, max_retries=3, retry_delay=1):
+        """
+        Get current battery settings from the server.
+        Note: The API doesn't provide a direct way to get current settings,
+        so this is a placeholder for future implementation if the API changes.
+        """
+        # For now, return the cached settings
+        if self._settings_loaded:
+            return self._settings_cache
         
-        url = f"{self.base_url}/api/Account/GetCustomUseESSSetting"
+        # In the future, if the API provides a way to get settings, 
+        # implement that here and update the cache
         
-        for attempt in range(max_retries):
-            try:
-                headers = self.set_auth_headers()
-                
-                _LOGGER.debug(f"Getting current battery settings attempt {attempt+1}/{max_retries}")
-                
-                response = self.session.get(url, headers=headers, timeout=10)
-                
-                if response.status_code == 200:
-                    try:
-                        data = response.json()
-                        
-                        if "code" in data and data["code"] == 9007:
-                            _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {data['info']}")
-                            time.sleep(retry_delay)
-                            continue
-                            
-                        if "data" in data:
-                            return data["data"]
-                        else:
-                            _LOGGER.error(f"Unexpected response format for battery settings: {data}")
-                    except Exception as e:
-                        _LOGGER.error(f"Error parsing battery settings: {e}")
-                elif response.status_code == 401:
-                    _LOGGER.info("Token expired, refreshing...")
-                    self.access_token = None
-                    if not self.get_token():
-                        _LOGGER.error("Failed to refresh token")
-                        return None
-                else:
-                    _LOGGER.error(f"Failed to get battery settings: HTTP {response.status_code}")
-                
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-            except Exception as e:
-                _LOGGER.error(f"Exception getting battery settings: {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-        
-        # If we couldn't get current settings, return a default payload
-        return {
-            "grid_charge": 1,
-            "ctr_dis": 1,
-            "bat_use_cap": 6,
-            "time_chaf1a": "14:30",
-            "time_chae1a": "16:00",
-            "time_chaf2a": "00:00",
-            "time_chae2a": "00:00",
-            "time_disf1a": "16:00",
-            "time_dise1a": "23:00",
-            "time_disf2a": "06:00",
-            "time_dise2a": "10:00",
-            "bat_high_cap": "100",
-            "time_cha_fwe1a": "00:00",
-            "time_cha_ewe1a": "00:00",
-            "time_cha_fwe2a": "00:00",
-            "time_cha_ewe2a": "00:00",
-            "time_dis_fwe1a": "00:00",
-            "time_dis_ewe1a": "00:00",
-            "time_dis_fwe2a": "00:00",
-            "time_dis_ewe2a": "00:00",
-            "peak_s1a": "00:00",
-            "peak_e1a": "00:00",
-            "peak_s2a": "00:00",
-            "peak_e2a": "00:00",
-            "fill_s1a": "00:00",
-            "fill_e1a": "00:00",
-            "fill_s2a": "00:00",
-            "fill_e2a": "00:00",
-            "pm_offset_s1a": "00:00",
-            "pm_offset_e1a": "00:00",
-            "pm_offset_s2a": "00:00",
-            "pm_offset_e2a": "00:00"
-        }
+        return self._settings_cache
 
-    def _update_battery_settings(self, payload, max_retries=5, retry_delay=1):
-        """Update battery settings with the given payload."""
+    def update_battery_settings(self, 
+                                discharge_start_time=None, 
+                                discharge_end_time=None,
+                                charge_start_time=None,
+                                charge_end_time=None,
+                                minimum_soc=None,
+                                max_retries=5, 
+                                retry_delay=1):
+        """
+        Update battery settings with caching to preserve existing settings.
+        
+        Args:
+            discharge_start_time: Time to start battery discharge (format HH:MM)
+            discharge_end_time: Time to end battery discharge (format HH:MM)
+            charge_start_time: Time to start battery charging (format HH:MM)
+            charge_end_time: Time to end battery charging (format HH:MM)
+            minimum_soc: Minimum state of charge percentage to maintain (1-100)
+            max_retries: Maximum number of retry attempts
+            retry_delay: Delay between retries in seconds
+            
+        Returns:
+            True if successful, False otherwise
+        """
         if not self.access_token and not self.get_token():
             return False
         
+        # Load current settings if not already loaded
+        if not self._settings_loaded:
+            self.get_current_settings()
+        
+        # Create a copy of the current settings
+        settings = self._settings_cache.copy()
+        
+        # Update settings with provided values
+        if discharge_start_time is not None:
+            settings["time_disf1a"] = discharge_start_time
+        
+        if discharge_end_time is not None:
+            settings["time_dise1a"] = discharge_end_time
+        
+        if charge_start_time is not None:
+            settings["time_chaf1a"] = charge_start_time
+        
+        if charge_end_time is not None:
+            settings["time_chae1a"] = charge_end_time
+        
+        if minimum_soc is not None:
+            try:
+                min_soc = int(minimum_soc)
+                if 1 <= min_soc <= 100:
+                    settings["bat_use_cap"] = min_soc
+                else:
+                    _LOGGER.error(f"Minimum SOC must be between 1 and 100, got {minimum_soc}")
+                    return False
+            except ValueError:
+                _LOGGER.error(f"Invalid minimum SOC value: {minimum_soc}")
+                return False
+        
+        # Send the updated settings to the server
+        return self._send_battery_settings(settings, max_retries, retry_delay)
+    
+    def _send_battery_settings(self, settings, max_retries=5, retry_delay=1):
+        """
+        Internal method to send battery settings to the server.
+        
+        Args:
+            settings: Dictionary of battery settings
+            max_retries: Maximum number of retry attempts
+            retry_delay: Delay between retries in seconds
+            
+        Returns:
+            True if successful, False otherwise
+        """
         url = f"{self.base_url}/api/Account/CustomUseESSSetting"
         
         for attempt in range(max_retries):
             try:
                 headers = self.set_auth_headers()
                 
-                _LOGGER.debug(f"Battery settings update attempt {attempt+1}/{max_retries}")
+                _LOGGER.debug(f"Battery settings request attempt {attempt+1}/{max_retries}")
                 
-                response = self.session.post(url, json=payload, headers=headers, timeout=10)
+                response = self.session.post(url, json=settings, headers=headers, timeout=10)
                 
                 if response.status_code == 200:
                     try:
@@ -334,112 +370,52 @@ class ByteWattClient:
                         
                         if "Success" in str(data):
                             _LOGGER.info(f"Successfully updated battery settings")
+                            # Update settings cache with the successfully sent settings
+                            self._settings_cache = settings.copy()
+                            self._settings_loaded = True
+                            
+                            # Log the updated settings
+                            _LOGGER.info(f"Updated settings: " +
+                                         f"Charge: {settings['time_chaf1a']}-{settings['time_chae1a']}, " +
+                                         f"Discharge: {settings['time_disf1a']}-{settings['time_dise1a']}, " +
+                                         f"Min SOC: {settings['bat_use_cap']}%")
                             return True
                         elif "code" in data and data["code"] == 9007:
                             _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {data['info']}")
+                            # Server is reporting a network issue, let's retry
                             time.sleep(retry_delay)
                             continue
                         else:
                             _LOGGER.error(f"Unexpected response when setting battery parameters: {data}")
                     except Exception as e:
-                        _LOGGER.error(f"Error parsing settings response: {e}")
+                        _LOGGER.error(f"Error parsing settings response (attempt {attempt+1}/{max_retries}): {e}")
                 elif response.status_code == 401:
-                    _LOGGER.info("Token expired,  refreshing...")
+                    _LOGGER.info("Token expired, refreshing...")
                     self.access_token = None
                     if not self.get_token():
                         _LOGGER.error("Failed to refresh token")
                         return False
                 else:
-                    _LOGGER.error(f"Failed to update settings: HTTP {response.status_code}")
+                    _LOGGER.error(f"Failed to update settings: HTTP {response.status_code} (attempt {attempt+1}/{max_retries})")
                 
+                # Wait before retrying
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
             except Exception as e:
-                _LOGGER.error(f"Exception during settings update: {e}")
+                _LOGGER.error(f"Exception during settings request (attempt {attempt+1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
         
         _LOGGER.error(f"Failed to update battery settings after {max_retries} attempts")
         return False
-
+    
+    # Legacy method for backward compatibility
     def set_battery_settings(self, end_discharge="23:00", max_retries=5, retry_delay=1):
-        """Update battery settings with retry capability."""
-        # Get current settings to use as a base
-        current_settings = self._get_current_battery_settings()
-        if not current_settings:
-            _LOGGER.error("Failed to get current battery settings")
-            return False
-        
-        # Update only the end_discharge time
-        current_settings["time_dise1a"] = end_discharge
-        
-        # Send the updated settings
-        return self._update_battery_settings(current_settings, max_retries, retry_delay)
-
-    def set_discharge_start_time(self, start_discharge, max_retries=5, retry_delay=1):
-        """Set the start time for battery discharge (time_disf1a)."""
-        # Get current settings to use as a base
-        current_settings = self._get_current_battery_settings()
-        if not current_settings:
-            _LOGGER.error("Failed to get current battery settings")
-            return False
-        
-        # Update only the discharge start time
-        current_settings["time_disf1a"] = start_discharge
-        
-        # Send the updated settings
-        success = self._update_battery_settings(current_settings, max_retries, retry_delay)
-        if success:
-            _LOGGER.info(f"Successfully set discharge start time to {start_discharge}")
-        return success
-
-    def set_discharge_end_time(self, end_discharge, max_retries=5, retry_delay=1):
-        """Set the end time for battery discharge (time_dise1a)."""
-        # Get current settings to use as a base
-        current_settings = self._get_current_battery_settings()
-        if not current_settings:
-            _LOGGER.error("Failed to get current battery settings")
-            return False
-        
-        # Update only the discharge end time
-        current_settings["time_dise1a"] = end_discharge
-        
-        # Send the updated settings
-        success = self._update_battery_settings(current_settings, max_retries, retry_delay)
-        if success:
-            _LOGGER.info(f"Successfully set discharge end time to {end_discharge}")
-        return success
-
-    def set_grid_charge_start_time(self, start_grid_charge, max_retries=5, retry_delay=1):
-        """Set the start time for grid charging (time_chaf1a)."""
-        # Get current settings to use as a base
-        current_settings = self._get_current_battery_settings()
-        if not current_settings:
-            _LOGGER.error("Failed to get current battery settings")
-            return False
-        
-        # Update only the grid charge start time
-        current_settings["time_chaf1a"] = start_grid_charge
-        
-        # Send the updated settings
-        success = self._update_battery_settings(current_settings, max_retries, retry_delay)
-        if success:
-            _LOGGER.info(f"Successfully set grid charge start time to {start_grid_charge}")
-        return success
-
-    def set_grid_charge_end_time(self, end_grid_charge, max_retries=5, retry_delay=1):
-        """Set the end time for grid charging (time_chae1a)."""
-        # Get current settings to use as a base
-        current_settings = self._get_current_battery_settings()
-        if not current_settings:
-            _LOGGER.error("Failed to get current battery settings")
-            return False
-        
-        # Update only the grid charge end time
-        current_settings["time_chae1a"] = end_grid_charge
-        
-        # Send the updated settings
-        success = self._update_battery_settings(current_settings, max_retries, retry_delay)
-        if success:
-            _LOGGER.info(f"Successfully set grid charge end time to {end_grid_charge}")
-        return success
+        """
+        Legacy method for backward compatibility - updates only the discharge end time.
+        """
+        return self.update_battery_settings(
+            discharge_end_time=end_discharge,
+            max_retries=max_retries,
+            retry_delay=retry_delay
+        )
