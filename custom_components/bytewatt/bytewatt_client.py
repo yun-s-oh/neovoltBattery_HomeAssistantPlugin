@@ -106,7 +106,7 @@ class ByteWattClient:
         return None
     
     def validate_settings_input(self, discharge_start_time, discharge_end_time, 
-                                charge_start_time, charge_end_time, minimum_soc):
+                               charge_start_time, charge_end_time, minimum_soc):
         """
         Validate input parameters for battery settings.
         
@@ -252,8 +252,7 @@ class ByteWattClient:
             return False
         
         return True
-
-    # Then modify the get_soc_data method to use this validation
+    
     def get_soc_data(self, max_retries=5, retry_delay=1):
         """Get State of Charge data from the API with retry capability."""
         if not self.access_token and not self.get_token():
@@ -323,7 +322,6 @@ class ByteWattClient:
         """Get Grid data from the API with retry capability."""
         if not self.access_token and not self.get_token():
             return None
-
         
         url = f"{self.base_url}/api/Power/SticsByPeriod?beginDay=2020-01-01&endDay=2035-08-30&SN=&noLoading=true"
         
@@ -551,13 +549,13 @@ class ByteWattClient:
         return settings
 
     def update_battery_settings(self, 
-                                discharge_start_time=None, 
-                                discharge_end_time=None,
-                                charge_start_time=None,
-                                charge_end_time=None,
-                                minimum_soc=None,
-                                max_retries=5, 
-                                retry_delay=1):
+                               discharge_start_time=None, 
+                               discharge_end_time=None,
+                               charge_start_time=None,
+                               charge_end_time=None,
+                               minimum_soc=None,
+                               max_retries=5, 
+                               retry_delay=1):
         """
         Update battery settings with API fetch to preserve existing settings.
         
