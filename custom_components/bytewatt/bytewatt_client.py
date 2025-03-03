@@ -225,99 +225,99 @@ class ByteWattClient:
         
         return headers
     
-	def is_valid_response(self, data):
-		"""
-		Check if the API response is valid based on pmeter values.
-		
-		Args:
-			data: The API response data
-			
-		Returns:
-			bool: True if the response is valid, False otherwise
-		"""
-		if not data or "data" not in data:
-			return False
-		
-		# Check for non-zero pmeter values, which indicate a bad response
-		pmeter_l1 = data["data"].get("pmeter_l1", 0)
-		pmeter_l2 = data["data"].get("pmeter_l2", 0)
-		pmeter_l3 = data["data"].get("pmeter_l3", 0)
-		
-		# If any pmeter value is non-zero, the response is invalid
-		if pmeter_l1 != 0 or pmeter_l2 != 0 or pmeter_l3 != 0:
-			_LOGGER.warning(
-				f"Invalid API response detected: pmeter_l1={pmeter_l1}, " +
-				f"pmeter_l2={pmeter_l2}, pmeter_l3={pmeter_l3}"
-			)
-			return False
-		
-		return True
+    def is_valid_response(self, data):
+        """
+        Check if the API response is valid based on pmeter values.
+        
+        Args:
+            data: The API response data
+            
+        Returns:
+            bool: True if the response is valid, False otherwise
+        """
+        if not data or "data" not in data:
+            return False
+        
+        # Check for non-zero pmeter values, which indicate a bad response
+        pmeter_l1 = data["data"].get("pmeter_l1", 0)
+        pmeter_l2 = data["data"].get("pmeter_l2", 0)
+        pmeter_l3 = data["data"].get("pmeter_l3", 0)
+        
+        # If any pmeter value is non-zero, the response is invalid
+        if pmeter_l1 != 0 or pmeter_l2 != 0 or pmeter_l3 != 0:
+            _LOGGER.warning(
+                f"Invalid API response detected: pmeter_l1={pmeter_l1}, " +
+                f"pmeter_l2={pmeter_l2}, pmeter_l3={pmeter_l3}"
+            )
+            return False
+        
+        return True
 
-	# Then modify the get_soc_data method to use this validation
-	def get_soc_data(self, max_retries=5, retry_delay=1):
-		"""Get State of Charge data from the API with retry capability."""
-		if not self.access_token and not self.get_token():
-			return None
-		
-		url = f"{self.base_url}/api/ESS/GetLastPowerDataBySN?sys_sn=All&noLoading=true"
-		
-		for attempt in range(max_retries):
-			try:
-				headers = self.set_auth_headers()
-				
-				_LOGGER.debug(f"SOC request attempt {attempt+1}/{max_retries}")
-				
-				response = self.session.get(url, headers=headers, timeout=10)
-				
-				if response.status_code == 200:
-					try:
-						data = response.json()
-						
-						if "code" in data and data["code"] == 9007:
-							_LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {data['info']}")
-							# Server is reporting a network issue, let's retry
-							time.sleep(retry_delay)
-							continue
-						
-						# Check if the response is valid
-						if not self.is_valid_response(data):
-							_LOGGER.warning(f"Invalid response data, retrying (attempt {attempt+1}/{max_retries})")
-							time.sleep(retry_delay)
-							continue
-							
-						if "data" in data:
-							# Success! Extract the data
-							return {
-								"soc": data["data"].get("soc", 0),
-								"gridConsumption": data["data"].get("pmeter_l1", 0),
-								"battery": data["data"].get("pbat", 0),
-								"houseConsumption": data["data"].get("pmeter_l1", 0) + data["data"].get("pbat", 0),
-								"createTime": data["data"].get("createtime", ""),
-								"pv": data["data"].get("ppv1", 0)
-							}
-						else:
-							_LOGGER.error(f"Unexpected response format (attempt {attempt+1}/{max_retries}): {data}")
-					except Exception as e:
-						_LOGGER.error(f"Error parsing SOC data (attempt {attempt+1}/{max_retries}): {e}")
-				elif response.status_code == 401:
-					_LOGGER.info("Token expired, refreshing...")
-					self.access_token = None
-					if not self.get_token():
-						_LOGGER.error("Failed to refresh token")
-						return None
-				else:
-					_LOGGER.error(f"Failed to get SOC data: HTTP {response.status_code} (attempt {attempt+1}/{max_retries})")
-				
-				# Wait before retrying
-				if attempt < max_retries - 1:
-					time.sleep(retry_delay)
-			except Exception as e:
-				_LOGGER.error(f"Exception during SOC request (attempt {attempt+1}/{max_retries}): {e}")
-				if attempt < max_retries - 1:
-					time.sleep(retry_delay)
-		
-		_LOGGER.error(f"Failed to get SOC data after {max_retries} attempts")
-		return None
+    # Then modify the get_soc_data method to use this validation
+    def get_soc_data(self, max_retries=5, retry_delay=1):
+        """Get State of Charge data from the API with retry capability."""
+        if not self.access_token and not self.get_token():
+            return None
+        
+        url = f"{self.base_url}/api/ESS/GetLastPowerDataBySN?sys_sn=All&noLoading=true"
+        
+        for attempt in range(max_retries):
+            try:
+                headers = self.set_auth_headers()
+                
+                _LOGGER.debug(f"SOC request attempt {attempt+1}/{max_retries}")
+                
+                response = self.session.get(url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    try:
+                        data = response.json()
+                        
+                        if "code" in data and data["code"] == 9007:
+                            _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {data['info']}")
+                            # Server is reporting a network issue, let's retry
+                            time.sleep(retry_delay)
+                            continue
+                        
+                        # Check if the response is valid
+                        if not self.is_valid_response(data):
+                            _LOGGER.warning(f"Invalid response data, retrying (attempt {attempt+1}/{max_retries})")
+                            time.sleep(retry_delay)
+                            continue
+                            
+                        if "data" in data:
+                            # Success! Extract the data
+                            return {
+                                "soc": data["data"].get("soc", 0),
+                                "gridConsumption": data["data"].get("pmeter_l1", 0),
+                                "battery": data["data"].get("pbat", 0),
+                                "houseConsumption": data["data"].get("pmeter_l1", 0) + data["data"].get("pbat", 0),
+                                "createTime": data["data"].get("createtime", ""),
+                                "pv": data["data"].get("ppv1", 0)
+                            }
+                        else:
+                            _LOGGER.error(f"Unexpected response format (attempt {attempt+1}/{max_retries}): {data}")
+                    except Exception as e:
+                        _LOGGER.error(f"Error parsing SOC data (attempt {attempt+1}/{max_retries}): {e}")
+                elif response.status_code == 401:
+                    _LOGGER.info("Token expired, refreshing...")
+                    self.access_token = None
+                    if not self.get_token():
+                        _LOGGER.error("Failed to refresh token")
+                        return None
+                else:
+                    _LOGGER.error(f"Failed to get SOC data: HTTP {response.status_code} (attempt {attempt+1}/{max_retries})")
+                
+                # Wait before retrying
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+            except Exception as e:
+                _LOGGER.error(f"Exception during SOC request (attempt {attempt+1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+        
+        _LOGGER.error(f"Failed to get SOC data after {max_retries} attempts")
+        return None
     
     def get_grid_data(self, max_retries=5, retry_delay=1):
         """Get Grid data from the API with retry capability."""
