@@ -239,14 +239,13 @@ class ByteWattClient:
             return False
         
         # Check for non-zero pmeter values, which indicate a bad response
-        pmeter_l1 = data["data"].get("pmeter_l1", 0)
         pmeter_l2 = data["data"].get("pmeter_l2", 0)
         pmeter_l3 = data["data"].get("pmeter_l3", 0)
         
         # If any pmeter value is non-zero, the response is invalid
-        if pmeter_l1 != 0 or pmeter_l2 != 0 or pmeter_l3 != 0:
+        if pmeter_l2 != 0 or pmeter_l3 != 0:
             _LOGGER.warning(
-                f"Invalid API response detected: pmeter_l1={pmeter_l1}, " +
+                f"Invalid API response detected: " +
                 f"pmeter_l2={pmeter_l2}, pmeter_l3={pmeter_l3}"
             )
             return False
