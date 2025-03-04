@@ -317,8 +317,56 @@ class ByteWattClient:
         _LOGGER.error(f"Failed to get SOC data after {max_retries} attempts")
         return None
     
+    """Add grid data validation to the ByteWatt client."""
+
+
+    def is_valid_grid_data(self, new_data):
+        """
+        Check if the grid data response is valid by ensuring cumulative values only increase.
+        
+        Args:
+            new_data: The new grid data to validate
+            
+        Returns:
+            bool: True if the data is valid, False otherwise
+        """
+        # If this is the first data point, it's valid by default
+        if not hasattr(self, '_last_valid_grid_data') or self._last_valid_grid_data is None:
+            self._last_valid_grid_data = new_data
+            return True
+        
+        # These fields should only increase over time (they're cumulative)
+        cumulative_fields = [
+            "Total_Solar_Generation",
+            "Total_Feed_In", 
+            "Total_Battery_Charge",
+            "PV_Power_House",
+            "PV_Charging_Battery",
+            "Total_House_Consumption",
+            "Grid_Based_Battery_Charge",
+            "Grid_Power_Consumption"
+        ]
+        
+        # Check each field to ensure it hasn't decreased
+        for field in cumulative_fields:
+            if field in new_data and field in self._last_valid_grid_data:
+                new_value = new_data[field]
+                last_value = self._last_valid_grid_data[field]
+                
+                # The new value should be >= the previous value
+                if new_value < last_value:
+                    _LOGGER.warning(
+                        f"Invalid grid data detected: {field} decreased from {last_value} to {new_value}"
+                    )
+                    return False
+        
+        # If we got here, all checks passed
+        self._last_valid_grid_data = new_data
+        return True
+
+    # Then modify the get_grid_data method to use this validation
     def get_grid_data(self, max_retries=5, retry_delay=1):
-        """Get Grid data from the API with retry capability."""
+        """Get Grid data from the API with retry capability and validation."""
         if not self.access_token and not self.get_token():
             return None
         
@@ -343,8 +391,8 @@ class ByteWattClient:
                             continue
                             
                         if "data" in data:
-                            # Success! Extract the data
-                            return {
+                            # Extract the data we need
+                            grid_data = {
                                 "Total_Solar_Generation": data["data"].get("EpvT", 0),
                                 "Total_Feed_In": data["data"].get("Eout", 0),
                                 "Total_Battery_Charge": data["data"].get("Echarge", 0),
@@ -354,6 +402,15 @@ class ByteWattClient:
                                 "Grid_Based_Battery_Charge": data["data"].get("EGridCharge", 0),
                                 "Grid_Power_Consumption": data["data"].get("EGrid2Load", 0)
                             }
+                            
+                            # Validate the grid data
+                            if not self.is_valid_grid_data(grid_data):
+                                _LOGGER.warning(f"Invalid grid data detected, retrying (attempt {attempt+1}/{max_retries})")
+                                time.sleep(retry_delay)
+                                continue
+                            
+                            # Success! Return the validated data
+                            return grid_data
                         else:
                             _LOGGER.error(f"Unexpected response format (attempt {attempt+1}/{max_retries}): {data}")
                     except Exception as e:
