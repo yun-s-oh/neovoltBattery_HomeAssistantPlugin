@@ -1,15 +1,118 @@
-"""Byte-Watt API client with API settings fetching."""
 import requests
 import json
 import time
 import re
+import math
 from datetime import datetime
 import logging
+from typing import Tuple, Optional, Dict, Any, List
 
 _LOGGER = logging.getLogger(__name__)
 
+class EnergyDataValidator:
+    """Class for validating energy data from the Byte-Watt API."""
+    
+    def __init__(self, 
+                 max_soc_change_rate: float = 1.6,  # % per minute (doubled from theoretical ~0.8%)
+                 power_balance_tolerance: float = 0.25,  # 25% tolerance for power imbalance
+                 anomaly_std_dev_threshold: float = 3.0,  # Flag if > 3 standard deviations from mean
+                 window_size: int = 5,  # Number of data points to use for statistical analysis
+                 max_power_rating: float = 5000,  # Maximum inverter power (W)
+                 battery_capacity: float = 10000,  # Battery capacity (Wh)
+                 power_contingency: float = 1.5):  # Contingency factor for power limits
+        
+        self.max_soc_change_rate = max_soc_change_rate
+        self.power_balance_tolerance = power_balance_tolerance
+        self.anomaly_std_dev_threshold = anomaly_std_dev_threshold
+        self.window_size = window_size
+        self.max_power_rating = max_power_rating
+        self.battery_capacity = battery_capacity
+        self.power_contingency = power_contingency
+        self.valid_data_points = []
+        
+    def is_valid_response(self, data: Dict[str, Any], timestamp: float) -> Tuple[bool, Optional[str]]:
+        """
+        Check if an API response is valid based on multiple criteria.
+        
+        Args:
+            data: The API response data
+            timestamp: Unix timestamp of the response
+            
+        Returns:
+            (is_valid, reason_if_invalid)
+        """
+        if not data:
+            return False, "No data in response"
+            
+        # 1. Check for sudden SOC jumps
+        if self.valid_data_points:
+            last_valid_data = self.valid_data_points[-1]
+            last_valid_timestamp = last_valid_data.get('timestamp', 0)
+            time_diff_minutes = (timestamp - last_valid_timestamp) / 60.0
+            
+            if time_diff_minutes > 0 and time_diff_minutes < 10:  # Only check if readings are < 10 minutes apart
+                last_soc = last_valid_data.get('data', {}).get('soc', 0)
+                current_soc = data.get('soc', 0)
+                
+                theoretical_max_change = (self.max_power_rating / self.battery_capacity) * 100 * time_diff_minutes
+                
+                # Apply our contingency factor to account for real-world variations
+                adjusted_max_change = theoretical_max_change * self.power_contingency
+                
+                # Use the more conservative of our fixed rate or the calculated rate
+                effective_max_change = min(self.max_soc_change_rate * time_diff_minutes, adjusted_max_change)
+                
+                if abs(current_soc - last_soc) > effective_max_change:
+                    return False, f"Impossible SOC change: {abs(current_soc - last_soc):.1f}% in {time_diff_minutes:.1f} min (max allowed: {effective_max_change:.1f}%)"
+        
+        # 2. Check for power balance violations
+        load_power = data.get('preal_l1', 0)
+        solar_power = data.get('ppv1', 0) + data.get('ppv2', 0) + data.get('ppv3', 0) + data.get('ppv4', 0)
+        battery_power = data.get('pbat', 0)
+        grid_power = data.get('pmeter_l1', 0) + data.get('pmeter_l2', 0) + data.get('pmeter_l3', 0) + data.get('pmeter_dc', 0)
+        
+        # Skip small power values to avoid false positives
+        if max(abs(load_power), abs(solar_power), abs(battery_power), abs(grid_power)) > 1000:
+            power_balance = abs((solar_power + grid_power + battery_power) - load_power)
+            max_power = max(abs(solar_power), abs(grid_power), abs(battery_power), abs(load_power))
+            
+            if power_balance > self.power_balance_tolerance * max_power:
+                return False, f"Power balance violation: {power_balance:.1f}W imbalance"
+                
+        # Also check for battery power exceeding inverter rating
+        if abs(battery_power) > self.max_power_rating * self.power_contingency:
+            return False, f"Battery power ({abs(battery_power):.1f}W) exceeds adjusted inverter capability ({self.max_power_rating * self.power_contingency:.1f}W)"
+        
+        # 3. Apply statistical anomaly detection if we have enough data points
+        if len(self.valid_data_points) >= self.window_size:
+            window = self.valid_data_points[-self.window_size:]
+            
+            # Check SOC anomalies
+            soc_values = [entry.get('data', {}).get('soc', 0) for entry in window]
+            soc_mean = sum(soc_values) / len(soc_values)
+            soc_std = math.sqrt(sum((x - soc_mean) ** 2 for x in soc_values) / len(soc_values))
+            
+            # Avoid division by zero and tiny standard deviations
+            if soc_std > 1.0:
+                soc_z_score = abs(data.get('soc', 0) - soc_mean) / soc_std
+                if soc_z_score > self.anomaly_std_dev_threshold:
+                    return False, f"SOC statistical anomaly: z-score={soc_z_score:.1f}"
+        
+        # If all checks pass, add to valid data points and consider the response valid
+        self.valid_data_points.append({
+            'timestamp': timestamp,
+            'data': data
+        })
+        
+        # Keep window size limited
+        if len(self.valid_data_points) > self.window_size * 2:
+            self.valid_data_points.pop(0)
+            
+        return True, None
+
+
 class ByteWattClient:
-    """Client for interacting with the Byte-Watt API with improved settings handling."""
+    """Client for interacting with the Byte-Watt API with comprehensive validation."""
     
     def __init__(self, username, password):
         """Initialize with login credentials."""
@@ -22,6 +125,10 @@ class ByteWattClient:
         # For signature generation
         self.prefix = "al8e4s"
         self.suffix = "ui893ed"
+        
+        # Initialize data validators
+        self.soc_validator = EnergyDataValidator()
+        self.grid_validator = EnergyDataValidator()
         
         # Default settings cache (used only if API fetch fails)
         self._settings_cache = {
@@ -225,35 +332,8 @@ class ByteWattClient:
         
         return headers
     
-    def is_valid_response(self, data):
-        """
-        Check if the API response is valid based on pmeter values.
-        
-        Args:
-            data: The API response data
-            
-        Returns:
-            bool: True if the response is valid, False otherwise
-        """
-        if not data or "data" not in data:
-            return False
-        
-        # Check for non-zero pmeter values, which indicate a bad response
-        pmeter_l2 = data["data"].get("pmeter_l2", 0)
-        pmeter_l3 = data["data"].get("pmeter_l3", 0)
-        
-        # If any pmeter value is non-zero, the response is invalid
-        if pmeter_l2 != 0 or pmeter_l3 != 0:
-            _LOGGER.warning(
-                f"Invalid API response detected: " +
-                f"pmeter_l2={pmeter_l2}, pmeter_l3={pmeter_l3}"
-            )
-            return False
-        
-        return True
-    
     def get_soc_data(self, max_retries=5, retry_delay=1):
-        """Get State of Charge data from the API with retry capability."""
+        """Get State of Charge data from the API with retry capability and validation."""
         if not self.access_token and not self.get_token():
             return None
         
@@ -266,6 +346,7 @@ class ByteWattClient:
                 _LOGGER.debug(f"SOC request attempt {attempt+1}/{max_retries}")
                 
                 response = self.session.get(url, headers=headers, timeout=10)
+                current_timestamp = time.time()
                 
                 if response.status_code == 200:
                     try:
@@ -277,24 +358,29 @@ class ByteWattClient:
                             time.sleep(retry_delay)
                             continue
                         
-                        # Check if the response is valid
-                        if not self.is_valid_response(data):
-                            _LOGGER.warning(f"Invalid response data, retrying (attempt {attempt+1}/{max_retries})")
+                        # First check for basic data availability
+                        if "data" not in data:
+                            _LOGGER.error(f"No data in response (attempt {attempt+1}/{max_retries}): {data}")
+                            time.sleep(retry_delay)
+                            continue
+                        
+                        # Use our validator to check for data issues
+                        is_valid, reason = self.soc_validator.is_valid_response(data["data"], current_timestamp)
+                        
+                        if not is_valid:
+                            _LOGGER.warning(f"Invalid SOC data detected ({reason}), retrying (attempt {attempt+1}/{max_retries})")
                             time.sleep(retry_delay)
                             continue
                             
-                        if "data" in data:
-                            # Success! Extract the data
-                            return {
-                                "soc": data["data"].get("soc", 0),
-                                "gridConsumption": data["data"].get("pmeter_l1", 0),
-                                "battery": data["data"].get("pbat", 0),
-                                "houseConsumption": data["data"].get("pmeter_l1", 0) + data["data"].get("pbat", 0),
-                                "createTime": data["data"].get("createtime", ""),
-                                "pv": data["data"].get("ppv1", 0)
-                            }
-                        else:
-                            _LOGGER.error(f"Unexpected response format (attempt {attempt+1}/{max_retries}): {data}")
+                        # Success! Extract the valid data
+                        return {
+                            "soc": data["data"].get("soc", 0),
+                            "gridConsumption": data["data"].get("pmeter_l1", 0),
+                            "battery": data["data"].get("pbat", 0),
+                            "houseConsumption": data["data"].get("pmeter_l1", 0) + data["data"].get("pbat", 0),
+                            "createTime": data["data"].get("createtime", ""),
+                            "pv": data["data"].get("ppv1", 0)
+                        }
                     except Exception as e:
                         _LOGGER.error(f"Error parsing SOC data (attempt {attempt+1}/{max_retries}): {e}")
                 elif response.status_code == 401:
@@ -317,56 +403,8 @@ class ByteWattClient:
         _LOGGER.error(f"Failed to get SOC data after {max_retries} attempts")
         return None
     
-    """Add grid data validation to the ByteWatt client."""
-
-
-    def is_valid_grid_data(self, new_data):
-        """
-        Check if the grid data response is valid by ensuring cumulative values only increase.
-        
-        Args:
-            new_data: The new grid data to validate
-            
-        Returns:
-            bool: True if the data is valid, False otherwise
-        """
-        # If this is the first data point, it's valid by default
-        if not hasattr(self, '_last_valid_grid_data') or self._last_valid_grid_data is None:
-            self._last_valid_grid_data = new_data
-            return True
-        
-        # These fields should only increase over time (they're cumulative)
-        cumulative_fields = [
-            "Total_Solar_Generation",
-            "Total_Feed_In", 
-            "Total_Battery_Charge",
-            "PV_Power_House",
-            "PV_Charging_Battery",
-            "Total_House_Consumption",
-            "Grid_Based_Battery_Charge",
-            "Grid_Power_Consumption"
-        ]
-        
-        # Check each field to ensure it hasn't decreased
-        for field in cumulative_fields:
-            if field in new_data and field in self._last_valid_grid_data:
-                new_value = new_data[field]
-                last_value = self._last_valid_grid_data[field]
-                
-                # The new value should be >= the previous value
-                if new_value < last_value:
-                    _LOGGER.warning(
-                        f"Invalid grid data detected: {field} decreased from {last_value} to {new_value}"
-                    )
-                    return False
-        
-        # If we got here, all checks passed
-        self._last_valid_grid_data = new_data
-        return True
-
-    # Then modify the get_grid_data method to use this validation
     def get_grid_data(self, max_retries=5, retry_delay=1):
-        """Get Grid data from the API with retry capability and validation."""
+        """Get Grid data from the API with retry capability."""
         if not self.access_token and not self.get_token():
             return None
         
@@ -379,6 +417,7 @@ class ByteWattClient:
                 _LOGGER.debug(f"Grid data request attempt {attempt+1}/{max_retries}")
                 
                 response = self.session.get(url, headers=headers, timeout=10)
+                current_timestamp = time.time()
                 
                 if response.status_code == 200:
                     try:
@@ -403,13 +442,22 @@ class ByteWattClient:
                                 "Grid_Power_Consumption": data["data"].get("EGrid2Load", 0)
                             }
                             
-                            # Validate the grid data
-                            if not self.is_valid_grid_data(grid_data):
-                                _LOGGER.warning(f"Invalid grid data detected, retrying (attempt {attempt+1}/{max_retries})")
-                                time.sleep(retry_delay)
-                                continue
+                            # For grid data, we check if cumulative values are increasing
+                            if hasattr(self, '_last_valid_grid_data') and self._last_valid_grid_data:
+                                # Check each cumulative value
+                                decreasing_values = []
+                                for key, value in grid_data.items():
+                                    last_value = self._last_valid_grid_data.get(key, 0)
+                                    if value < last_value:
+                                        decreasing_values.append(f"{key}: {last_value} -> {value}")
+                                
+                                if decreasing_values:
+                                    _LOGGER.warning(f"Decreasing cumulative values detected: {', '.join(decreasing_values)}")
+                                    time.sleep(retry_delay)
+                                    continue
                             
-                            # Success! Return the validated data
+                            # Store for next comparison and return the data
+                            self._last_valid_grid_data = grid_data
                             return grid_data
                         else:
                             _LOGGER.error(f"Unexpected response format (attempt {attempt+1}/{max_retries}): {data}")
