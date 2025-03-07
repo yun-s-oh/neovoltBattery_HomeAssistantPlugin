@@ -15,7 +15,22 @@ from .const import (
     DOMAIN,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
+    CONF_RECOVERY_ENABLED,
+    CONF_HEARTBEAT_INTERVAL,
+    CONF_MAX_DATA_AGE,
+    CONF_STALE_CHECKS_THRESHOLD,
+    CONF_NOTIFY_ON_RECOVERY,
+    CONF_DIAGNOSTICS_MODE,
+    CONF_AUTO_RECONNECT_TIME,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_RECOVERY_ENABLED,
+    DEFAULT_HEARTBEAT_INTERVAL,
+    DEFAULT_MAX_DATA_AGE,
+    DEFAULT_STALE_CHECKS_THRESHOLD,
+    DEFAULT_NOTIFY_ON_RECOVERY,
+    DEFAULT_DIAGNOSTICS_MODE,
+    DEFAULT_AUTO_RECONNECT_TIME,
     SERVICE_SET_DISCHARGE_TIME,
     SERVICE_SET_DISCHARGE_START_TIME,
     SERVICE_SET_CHARGE_START_TIME,
@@ -23,6 +38,8 @@ from .const import (
     SERVICE_SET_MINIMUM_SOC,
     SERVICE_UPDATE_BATTERY_SETTINGS,
     SERVICE_FORCE_RECONNECT,
+    SERVICE_HEALTH_CHECK,
+    SERVICE_TOGGLE_DIAGNOSTICS,
     ATTR_END_DISCHARGE,
     ATTR_START_DISCHARGE,
     ATTR_START_CHARGE,
@@ -43,7 +60,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Byte-Watt from a config entry."""
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
-    scan_interval = entry.options.get(CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+    
+    # Get all configuration options with defaults
+    options = entry.options or {}
+    scan_interval = options.get(CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+    
+    # Recovery options (can be added to config flow for future customization)
+    recovery_options = {
+        CONF_RECOVERY_ENABLED: options.get(CONF_RECOVERY_ENABLED, DEFAULT_RECOVERY_ENABLED),
+        CONF_HEARTBEAT_INTERVAL: options.get(CONF_HEARTBEAT_INTERVAL, DEFAULT_HEARTBEAT_INTERVAL),
+        CONF_MAX_DATA_AGE: options.get(CONF_MAX_DATA_AGE, DEFAULT_MAX_DATA_AGE),
+        CONF_STALE_CHECKS_THRESHOLD: options.get(CONF_STALE_CHECKS_THRESHOLD, DEFAULT_STALE_CHECKS_THRESHOLD),
+        CONF_NOTIFY_ON_RECOVERY: options.get(CONF_NOTIFY_ON_RECOVERY, DEFAULT_NOTIFY_ON_RECOVERY),
+        CONF_DIAGNOSTICS_MODE: options.get(CONF_DIAGNOSTICS_MODE, DEFAULT_DIAGNOSTICS_MODE),
+        CONF_AUTO_RECONNECT_TIME: options.get(CONF_AUTO_RECONNECT_TIME, DEFAULT_AUTO_RECONNECT_TIME)
+    }
 
     client = ByteWattClient(username, password)
 
@@ -51,6 +82,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass,
         client=client,
         scan_interval=scan_interval,
+        entry_id=entry.entry_id,
+        options=recovery_options
     )
 
     await coordinator.async_config_entry_first_refresh()
@@ -60,12 +93,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         "coordinator": coordinator,
     }
 
-    # Start the heartbeat monitoring service
-    await coordinator.start_heartbeat()
-    _LOGGER.info("ByteWatt heartbeat monitoring service started")
+    # Start the heartbeat monitoring service if enabled
+    if recovery_options[CONF_RECOVERY_ENABLED]:
+        await coordinator.start_heartbeat()
+        _LOGGER.info(
+            f"ByteWatt heartbeat monitoring started (interval: {recovery_options[CONF_HEARTBEAT_INTERVAL]}s, "
+            f"stale threshold: {recovery_options[CONF_MAX_DATA_AGE]}s)"
+        )
 
-    # Register all battery control services
-    await register_battery_services(hass, client)
+    # Register all battery control services and recovery services
+    await register_battery_services(hass, client, coordinator)
 
     for platform in PLATFORMS:
         hass.async_create_task(
@@ -97,7 +134,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     return unload_ok
 
 
-async def register_battery_services(hass: HomeAssistant, client: ByteWattClient):
+async def register_battery_services(hass: HomeAssistant, client: ByteWattClient, coordinator=None):
     """Register all battery control services and maintenance services."""
     
     # Register Force Reconnect service - retrieves all coordinator objects and triggers recovery
@@ -120,6 +157,96 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient)
         
         if not reconnected:
             _LOGGER.error("No active ByteWatt integrations found to reconnect")
+    
+    # Register Health Check service
+    async def handle_health_check(call: ServiceCall):
+        """Handle the service call to run a health check."""
+        results = {}
+        
+        # Get specific entry_id from service call if provided
+        entry_id = call.data.get('entry_id')
+        
+        if entry_id:
+            # Run health check for specific integration
+            if entry_id in hass.data[DOMAIN] and "coordinator" in hass.data[DOMAIN][entry_id]:
+                coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
+                results[entry_id] = await coordinator.run_health_check()
+            else:
+                _LOGGER.error(f"No ByteWatt integration found with entry_id: {entry_id}")
+        else:
+            # Run health check for all integrations
+            for entry_id, entry_data in hass.data[DOMAIN].items():
+                if "coordinator" in entry_data:
+                    coordinator = entry_data["coordinator"]
+                    results[entry_id] = await coordinator.run_health_check()
+        
+        # Create persistent notification with health check results
+        if results:
+            summary = []
+            for entry_id, result in results.items():
+                status = result.get("connection_status", "unknown")
+                color = {
+                    "healthy": "green",
+                    "limited": "orange",
+                    "disconnected": "red",
+                    "unknown": "grey"
+                }.get(status, "grey")
+                
+                auth_success = result.get("authentication", {}).get("success", False)
+                api_success = all(
+                    endpoint.get("success", False) 
+                    for endpoint in result.get("api_checks", {}).values()
+                )
+                
+                summary.append(
+                    f"Integration {entry_id}: "
+                    f"<span style='color:{color};'>{status}</span><br>"
+                    f"Authentication: {'✓' if auth_success else '✗'}, "
+                    f"API: {'✓' if api_success else '✗'}"
+                )
+            
+            message = "<br>".join(summary)
+            await hass.components.persistent_notification.async_create(
+                message,
+                title="ByteWatt Health Check Results",
+                notification_id="bytewatt_health_check"
+            )
+        else:
+            _LOGGER.error("No ByteWatt integrations found for health check")
+    
+    # Register Toggle Diagnostics service
+    async def handle_toggle_diagnostics(call: ServiceCall):
+        """Handle the service call to toggle diagnostics mode."""
+        enable = call.data.get('enable')
+        entry_id = call.data.get('entry_id')
+        
+        results = {}
+        
+        if entry_id:
+            # Toggle diagnostics for specific integration
+            if entry_id in hass.data[DOMAIN] and "coordinator" in hass.data[DOMAIN][entry_id]:
+                coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
+                results[entry_id] = coordinator.toggle_diagnostics_mode(enable)
+            else:
+                _LOGGER.error(f"No ByteWatt integration found with entry_id: {entry_id}")
+        else:
+            # Toggle diagnostics for all integrations
+            for entry_id, entry_data in hass.data[DOMAIN].items():
+                if "coordinator" in entry_data:
+                    coordinator = entry_data["coordinator"]
+                    results[entry_id] = coordinator.toggle_diagnostics_mode(enable)
+        
+        # Create persistent notification
+        if results:
+            message = "Diagnostics Mode: "
+            message += "Enabled" if list(results.values())[0].get("diagnostics_mode", False) else "Disabled"
+            await hass.components.persistent_notification.async_create(
+                message,
+                title="ByteWatt Diagnostics",
+                notification_id="bytewatt_diagnostics"
+            )
+        else:
+            _LOGGER.error("No ByteWatt integrations found to toggle diagnostics")
     
     # Legacy service - set discharge end time only
     async def handle_set_discharge_time(call: ServiceCall):
@@ -309,10 +436,29 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient)
         })
     )
     
-    # Register maintenance service
+    # Register maintenance services
     hass.services.async_register(
         DOMAIN,
         SERVICE_FORCE_RECONNECT,
         handle_force_reconnect,
         schema=vol.Schema({})  # No parameters required
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_HEALTH_CHECK,
+        handle_health_check,
+        schema=vol.Schema({
+            vol.Optional('entry_id'): cv.string
+        })
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_TOGGLE_DIAGNOSTICS,
+        handle_toggle_diagnostics,
+        schema=vol.Schema({
+            vol.Optional('enable'): cv.boolean,
+            vol.Optional('entry_id'): cv.string
+        })
     )

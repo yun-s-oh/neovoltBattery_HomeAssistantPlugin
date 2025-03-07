@@ -7,6 +7,42 @@ force_reconnect:
     Use this service if your ByteWatt integration has stopped updating and shows stale data.
     This will reset the client connection, authenticate again, and refresh all sensor data.
 
+health_check:
+  name: Health Check
+  description: >-
+    Run a comprehensive health check on the ByteWatt integration.
+    This will check network connectivity, authentication, and API accessibility.
+    Results will be displayed in a persistent notification.
+  fields:
+    entry_id:
+      name: Integration ID
+      description: The ID of the specific integration to check (optional, checks all if not provided)
+      example: "abcdef1234"
+      required: false
+      selector:
+        text:
+
+toggle_diagnostics:
+  name: Toggle Diagnostics
+  description: >-
+    Enable or disable detailed diagnostic logging for the ByteWatt integration.
+    When enabled, detailed logs will be collected about API operations, errors, and recovery attempts.
+  fields:
+    enable:
+      name: Enable
+      description: Set to true to enable diagnostics, false to disable (toggles current state if not provided)
+      required: false
+      example: true
+      selector:
+        boolean:
+    entry_id:
+      name: Integration ID
+      description: The ID of the specific integration to modify (optional, affects all if not provided)
+      example: "abcdef1234"
+      required: false
+      selector:
+        text:
+
 set_discharge_time:
   name: Set Discharge End Time
   description: Set the end time for battery discharge (legacy service)

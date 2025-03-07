@@ -6,10 +6,24 @@ DOMAIN = "bytewatt"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_SCAN_INTERVAL = "scan_interval"
+CONF_RECOVERY_ENABLED = "recovery_enabled"
+CONF_HEARTBEAT_INTERVAL = "heartbeat_interval"
+CONF_MAX_DATA_AGE = "max_data_age"
+CONF_STALE_CHECKS_THRESHOLD = "stale_checks_threshold"
+CONF_NOTIFY_ON_RECOVERY = "notify_on_recovery"
+CONF_DIAGNOSTICS_MODE = "diagnostics_mode"
+CONF_AUTO_RECONNECT_TIME = "auto_reconnect_time"
 
 # Defaults
 DEFAULT_SCAN_INTERVAL = 60  # 1 minute
 MIN_SCAN_INTERVAL = 30  # 30 seconds
+DEFAULT_RECOVERY_ENABLED = True
+DEFAULT_HEARTBEAT_INTERVAL = 120  # 2 minutes
+DEFAULT_MAX_DATA_AGE = 300  # 5 minutes
+DEFAULT_STALE_CHECKS_THRESHOLD = 3
+DEFAULT_NOTIFY_ON_RECOVERY = True
+DEFAULT_DIAGNOSTICS_MODE = False
+DEFAULT_AUTO_RECONNECT_TIME = "03:30:00"  # 3:30 AM
 
 # Services
 SERVICE_SET_DISCHARGE_TIME = "set_discharge_time"  # Legacy service
@@ -19,6 +33,8 @@ SERVICE_SET_CHARGE_END_TIME = "set_charge_end_time"
 SERVICE_SET_MINIMUM_SOC = "set_minimum_soc"
 SERVICE_UPDATE_BATTERY_SETTINGS = "update_battery_settings"
 SERVICE_FORCE_RECONNECT = "force_reconnect"  # Force client reconnection for troubleshooting
+SERVICE_HEALTH_CHECK = "health_check"  # Check connection health and return diagnostics
+SERVICE_TOGGLE_DIAGNOSTICS = "toggle_diagnostics"  # Toggle diagnostic logging
 
 # Service attributes
 ATTR_END_DISCHARGE = "end_discharge"
