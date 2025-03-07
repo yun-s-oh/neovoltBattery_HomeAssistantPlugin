@@ -15,12 +15,30 @@ class ByteWattClient:
     
     def __init__(self, username: str, password: str):
         """Initialize with login credentials."""
+        self.username = username
+        self.password = password
         self.api_client = ByteWattAPIClient(username, password)
         self.battery_data_api = BatteryDataAPI(self.api_client)
         self.settings_api = BatterySettingsAPI(self.api_client)
         
         # Make the settings cache accessible for the sensor module
         self._settings_cache = self.settings_api._settings_cache
+    
+    def initialize(self):
+        """Initialize or re-initialize the client."""
+        # Re-create API client with fresh session
+        self.api_client = ByteWattAPIClient(self.username, self.password)
+        
+        # Re-initialize API modules with the new client
+        self.battery_data_api = BatteryDataAPI(self.api_client)
+        self.settings_api = BatterySettingsAPI(self.api_client)
+        
+        # Re-link settings cache
+        self._settings_cache = self.settings_api._settings_cache
+    
+    def ensure_authenticated(self) -> bool:
+        """Ensure the client is authenticated with the API."""
+        return self.api_client.ensure_authenticated()
     
     def get_token(self) -> bool:
         """Get an authentication token."""

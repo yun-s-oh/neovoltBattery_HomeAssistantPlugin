@@ -22,6 +22,7 @@ from .const import (
     SERVICE_SET_CHARGE_END_TIME,
     SERVICE_SET_MINIMUM_SOC,
     SERVICE_UPDATE_BATTERY_SETTINGS,
+    SERVICE_FORCE_RECONNECT,
     ATTR_END_DISCHARGE,
     ATTR_START_DISCHARGE,
     ATTR_START_CHARGE,
@@ -59,6 +60,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         "coordinator": coordinator,
     }
 
+    # Start the heartbeat monitoring service
+    await coordinator.start_heartbeat()
+    _LOGGER.info("ByteWatt heartbeat monitoring service started")
+
     # Register all battery control services
     await register_battery_services(hass, client)
 
@@ -71,6 +76,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
+    # Stop the heartbeat service first
+    if entry.entry_id in hass.data[DOMAIN]:
+        coordinator = hass.data[DOMAIN][entry.entry_id].get("coordinator")
+        if coordinator:
+            await coordinator.stop_heartbeat()
+            _LOGGER.info("ByteWatt heartbeat monitoring service stopped")
+    
     unload_ok = all(
         await asyncio.gather(
             *[
@@ -86,7 +98,28 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 
 async def register_battery_services(hass: HomeAssistant, client: ByteWattClient):
-    """Register all battery control services."""
+    """Register all battery control services and maintenance services."""
+    
+    # Register Force Reconnect service - retrieves all coordinator objects and triggers recovery
+    async def handle_force_reconnect(call: ServiceCall):
+        """Handle the service call to force a reconnection for all ByteWatt integrations."""
+        _LOGGER.warning("Manual reconnect triggered for ByteWatt integration")
+        reconnected = False
+        
+        for entry_id, entry_data in hass.data[DOMAIN].items():
+            if "coordinator" in entry_data:
+                coordinator = entry_data["coordinator"]
+                _LOGGER.info(f"Forcing recovery for ByteWatt integration (entry_id: {entry_id})")
+                try:
+                    # Execute the recovery process
+                    await coordinator._perform_recovery()
+                    reconnected = True
+                    _LOGGER.info(f"Recovery process completed for ByteWatt integration (entry_id: {entry_id})")
+                except Exception as err:
+                    _LOGGER.error(f"Failed to recover ByteWatt integration (entry_id: {entry_id}): {err}")
+        
+        if not reconnected:
+            _LOGGER.error("No active ByteWatt integrations found to reconnect")
     
     # Legacy service - set discharge end time only
     async def handle_set_discharge_time(call: ServiceCall):
@@ -274,4 +307,12 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient)
             vol.Optional(ATTR_END_CHARGE): cv.string,
             vol.Optional(ATTR_MINIMUM_SOC): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
         })
+    )
+    
+    # Register maintenance service
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_FORCE_RECONNECT,
+        handle_force_reconnect,
+        schema=vol.Schema({})  # No parameters required
     )

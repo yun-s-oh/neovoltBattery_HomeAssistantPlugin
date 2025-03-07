@@ -18,6 +18,7 @@ SERVICE_SET_CHARGE_START_TIME = "set_charge_start_time"
 SERVICE_SET_CHARGE_END_TIME = "set_charge_end_time"
 SERVICE_SET_MINIMUM_SOC = "set_minimum_soc"
 SERVICE_UPDATE_BATTERY_SETTINGS = "update_battery_settings"
+SERVICE_FORCE_RECONNECT = "force_reconnect"  # Force client reconnection for troubleshooting
 
 # Service attributes
 ATTR_END_DISCHARGE = "end_discharge"

@@ -1,5 +1,12 @@
 # Service definitions for the Byte-Watt integration
 
+force_reconnect:
+  name: Force Reconnect
+  description: >-
+    Force the ByteWatt integration to reconnect to the API when it appears to be stuck.
+    Use this service if your ByteWatt integration has stopped updating and shows stale data.
+    This will reset the client connection, authenticate again, and refresh all sensor data.
+
 set_discharge_time:
   name: Set Discharge End Time
   description: Set the end time for battery discharge (legacy service)
