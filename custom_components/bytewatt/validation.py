@@ -12,16 +12,18 @@ class EnergyDataValidator:
     """Enhanced class for validating energy data from the Byte-Watt API."""
     
     def __init__(self, 
-                 max_soc_change_rate: float = 5.0,  # % per minute - increased based on data analysis
+                 max_soc_change_rate: float = 3.0,  # % per minute - decreased to catch more spikes
                  power_balance_tolerance: float = 1.0,  # Increased tolerance for power imbalance
-                 anomaly_std_dev_threshold: float = 3.5,  # Flag if > 3.5 standard deviations from mean
-                 window_size: int = 5,  # Number of data points to use for statistical analysis
-                 max_power_rating: float = 8000,  # Maximum inverter power (W) - increased based on data
+                 anomaly_std_dev_threshold: float = 3.0,  # Flag if > 3.0 standard deviations from mean
+                 window_size: int = 10,  # Increased window size for better statistical analysis
+                 max_power_rating: float = 8000,  # Maximum inverter power (W)
                  battery_capacity: float = 10000,  # Battery capacity (Wh)
                  power_contingency: float = 1.5,  # Contingency factor for power limits
                  min_power_threshold: float = 500,  # Minimum power threshold for balance checks
                  max_time_gap: float = 600,  # Maximum time gap in seconds to consider for validation
-                 ema_alpha: float = 0.3):  # Exponential moving average weight factor
+                 ema_alpha: float = 0.2,  # Reduced alpha for more stable EMA
+                 max_allowed_soc_jump: float = 15.0,  # Maximum allowed SOC jump in any case
+                 soc_history_size: int = 20):  # Size of SOC history deque for median filtering
         
         # Core parameters
         self.max_soc_change_rate = max_soc_change_rate
@@ -42,10 +44,21 @@ class EnergyDataValidator:
         self.last_checked_timestamp = 0
         self.consecutive_failures = 0
         self.consecutive_successes = 0
+        self.max_allowed_soc_jump = max_allowed_soc_jump
+        self.soc_history_size = soc_history_size
+        
+        # More robust SOC tracking
+        self.soc_history = deque(maxlen=soc_history_size)
+        self.soc_median = None
+        self.last_valid_soc = None
+        self.last_valid_soc_timestamp = 0
+        self.soc_trend = 0  # Direction: 1=up, -1=down, 0=stable
+        self.suspected_spike = False
         
         # Power state tracking
         self.is_charging = False
         self.is_discharging = False
+        self.battery_power_history = deque(maxlen=soc_history_size)
         
     def get_median(self, values: List[float]) -> float:
         """Calculate median value from a list of numbers."""
@@ -68,6 +81,9 @@ class EnergyDataValidator:
         """Determine if the battery is charging, discharging, or idle."""
         battery_power = data.get('pbat', 0)
         
+        # Add to history
+        self.battery_power_history.append(battery_power)
+        
         # Update charging/discharging state
         if battery_power > 200:  # Positive = charging
             self.is_charging = True
@@ -78,6 +94,90 @@ class EnergyDataValidator:
         else:  # Near zero = idle
             self.is_charging = False
             self.is_discharging = False
+    
+    def update_soc_tracking(self, soc: float, timestamp: float) -> None:
+        """Update SOC tracking variables."""
+        # Update SOC history
+        self.soc_history.append(soc)
+        
+        # Calculate new median when we have enough data
+        if len(self.soc_history) >= 3:
+            self.soc_median = self.get_median(list(self.soc_history))
+        else:
+            self.soc_median = soc
+        
+        # Update SOC trend
+        if self.last_valid_soc is not None:
+            if soc > self.last_valid_soc + 0.5:
+                self.soc_trend = 1  # Upward trend
+            elif soc < self.last_valid_soc - 0.5:
+                self.soc_trend = -1  # Downward trend
+            else:
+                self.soc_trend = 0  # Stable
+    
+    def is_soc_spike(self, current_soc: float, timestamp: float) -> Tuple[bool, Optional[str]]:
+        """
+        Detect SOC spikes using multiple methods.
+        
+        Returns:
+            (is_spike, reason_if_spike)
+        """
+        if self.last_valid_soc is None or self.last_valid_soc_timestamp == 0:
+            # First data point, can't determine if it's a spike
+            return False, None
+        
+        # Calculate time difference
+        time_diff_seconds = timestamp - self.last_valid_soc_timestamp
+        time_diff_minutes = time_diff_seconds / 60.0
+        
+        # Skip very old timestamps
+        if time_diff_seconds <= 0 or time_diff_seconds > self.max_time_gap:
+            return False, None
+        
+        # Calculate the change rate
+        soc_change = current_soc - self.last_valid_soc
+        soc_change_rate = abs(soc_change) / time_diff_minutes
+        
+        # 1. Hard ceiling on SOC jumps regardless of time
+        if abs(soc_change) > self.max_allowed_soc_jump:
+            return True, f"Extreme SOC jump: {abs(soc_change):.1f}% (max allowed: {self.max_allowed_soc_jump:.1f}%)"
+        
+        # 2. Check against rate of change limit
+        adaptive_rate = self.calculate_adaptive_soc_change_rate(time_diff_minutes, current_soc)
+        if soc_change_rate > adaptive_rate:
+            return True, f"SOC change rate: {soc_change_rate:.1f}%/min (max: {adaptive_rate:.1f}%/min)"
+        
+        # 3. Check for changes contradicting battery power direction
+        if len(self.battery_power_history) > 0:
+            avg_power = sum(self.battery_power_history) / len(self.battery_power_history)
+            
+            # If battery is discharging (negative) but SOC increasing significantly
+            if avg_power < -100 and soc_change > 2:
+                return True, f"SOC increased by {soc_change:.1f}% while battery discharging ({avg_power:.1f}W)"
+                
+            # If battery is charging (positive) but SOC decreasing significantly
+            if avg_power > 100 and soc_change < -2:
+                return True, f"SOC decreased by {abs(soc_change):.1f}% while battery charging ({avg_power:.1f}W)"
+        
+        # 4. Check against median-based thresholds
+        if self.soc_median is not None:
+            median_diff = abs(current_soc - self.soc_median)
+            
+            # If greater than 10% from median, investigate
+            if median_diff > 10:
+                # Stricter checks for sudden large jumps from median
+                if time_diff_minutes < 5 and median_diff > 15:
+                    return True, f"Large deviation from median: {current_soc:.1f}% vs {self.soc_median:.1f}%"
+        
+        # 5. Check for rapid direction reversal
+        if self.soc_trend != 0:
+            current_trend = 1 if soc_change > 0 else (-1 if soc_change < 0 else 0)
+            
+            # If trend reversed with a large jump
+            if current_trend != 0 and current_trend != self.soc_trend and abs(soc_change) > 5:
+                return True, f"Suspicious trend reversal: {soc_change:.1f}% change"
+        
+        return False, None
     
     def calculate_adaptive_soc_change_rate(self, time_diff_minutes: float, soc: float) -> float:
         """Calculate an adaptive SOC change rate based on time gap and current SOC."""
@@ -126,7 +226,7 @@ class EnergyDataValidator:
     
     def is_valid_response(self, data: Dict[str, Any], timestamp: float) -> Tuple[bool, Optional[str]]:
         """
-        Enhanced validation of API response data with adaptive thresholds and filtering.
+        Enhanced validation of API response data with robust spike detection.
         
         Args:
             data: The API response data
@@ -138,9 +238,7 @@ class EnergyDataValidator:
         if not data:
             return False, "No data in response"
         
-        # Update power state for context-aware validation
-        self.determine_power_state(data)
-        
+        # Extract key power values
         current_soc = data.get('soc', 0)
         load_power = data.get('preal_l1', 0)
         solar_power = (
@@ -157,46 +255,48 @@ class EnergyDataValidator:
             data.get('pmeter_dc', 0)
         )
         
-        # Update SOC EMA
+        # Update power state for context-aware validation
+        self.determine_power_state(data)
+        
+        # Step 1: Check for SOC spikes first - most important validation
+        if self.last_valid_soc is not None:
+            is_spike, spike_reason = self.is_soc_spike(current_soc, timestamp)
+            if is_spike:
+                _LOGGER.warning(f"SOC spike detected: {current_soc}% vs last valid {self.last_valid_soc}%. Reason: {spike_reason}")
+                self.suspected_spike = True
+                return self.validate_with_hysteresis(False, spike_reason)
+        
+        # Step 2: Update SOC tracking (EMA, median, etc.)
+        self.update_soc_tracking(current_soc, timestamp)
+        
+        # Update SOC EMA (used for smoothing)
         if self.soc_ema is None:
             self.soc_ema = current_soc
         else:
             self.soc_ema = self.update_exponential_moving_average(current_soc, self.soc_ema)
         
-        # 1. Check for sudden SOC jumps with adaptive thresholds
-        if self.valid_data_points:
-            last_valid_data = self.valid_data_points[-1]
-            last_valid_timestamp = last_valid_data.get('timestamp', 0)
-            time_diff_seconds = timestamp - last_valid_timestamp
-            time_diff_minutes = time_diff_seconds / 60.0
+        # Step 3: Statistical validation against historical data
+        if len(self.soc_history) >= 5:
+            # Calculate z-score relative to median (more robust than mean)
+            soc_median = self.get_median(list(self.soc_history))
+            abs_deviations = [abs(x - soc_median) for x in self.soc_history]
+            mad = self.get_median(abs_deviations)
             
-            # Only validate if time difference is within reasonable bounds
-            if 0 < time_diff_seconds < self.max_time_gap:
-                last_soc = last_valid_data.get('data', {}).get('soc', 0)
-                
-                # Calculate theoretical and adaptive change limits
-                theoretical_max_change = (self.max_power_rating / self.battery_capacity) * 100 * time_diff_minutes
-                adaptive_rate = self.calculate_adaptive_soc_change_rate(time_diff_minutes, current_soc)
-                
-                # Apply contingency factor to theoretical limit
-                adjusted_max_change = theoretical_max_change * self.power_contingency
-                
-                # Use the more conservative of the adaptive rate or theoretical limit
-                effective_max_change = min(adaptive_rate * time_diff_minutes, adjusted_max_change)
-                
-                # Add a minimum threshold to avoid rejecting small changes
-                effective_max_change = max(effective_max_change, 1.0)
-                
-                # Check against SOC EMA for larger time gaps
-                comparison_soc = self.soc_ema if time_diff_minutes > 5 else last_soc
-                
-                if abs(current_soc - comparison_soc) > effective_max_change:
-                    return self.validate_with_hysteresis(
-                        False, 
-                        f"SOC change: {abs(current_soc - comparison_soc):.1f}% in {time_diff_minutes:.1f}min (max: {effective_max_change:.1f}%)"
-                    )
+            # Use MAD for robust outlier detection, with minimum threshold
+            effective_std = max(mad * 1.4826, 1.0)  # 1.4826 converts MAD to std-dev equivalent
+            
+            # Calculate z-score
+            z_score = abs(current_soc - soc_median) / effective_std
+            
+            # If z-score is extremely high, reject the value
+            if z_score > self.anomaly_std_dev_threshold:
+                _LOGGER.warning(f"Statistical anomaly: SOC {current_soc:.1f}% vs median {soc_median:.1f}% (z-score: {z_score:.2f})")
+                return self.validate_with_hysteresis(
+                    False,
+                    f"Statistical anomaly: z-score {z_score:.2f} > threshold {self.anomaly_std_dev_threshold}"
+                )
         
-        # 2. Improved power balance check with adaptive tolerance
+        # Step 4: Power balance check (could indicate faulty readings)
         power_sum = solar_power + grid_power + battery_power
         power_balance = abs(power_sum - load_power)
         max_power = max(abs(solar_power), abs(grid_power), abs(battery_power), abs(load_power))
@@ -209,52 +309,14 @@ class EnergyDataValidator:
                 # For high power levels, be more lenient
                 adaptive_tolerance *= 1.2
             
-            if power_balance > adaptive_tolerance * max_power:
-                # For extreme imbalances, always reject
-                if power_balance > 2 * adaptive_tolerance * max_power:
-                    return self.validate_with_hysteresis(
-                        False, 
-                        f"Severe power imbalance: {power_balance:.1f}W (ratio: {power_balance/max_power:.2f})"
-                    )
-                
-                # Check if we have previous power values for median filtering
-                if len(self.valid_data_points) >= 3:
-                    # Get recent power values
-                    recent_entries = self.valid_data_points[-3:]
-                    recent_balances = []
-                    
-                    for entry in recent_entries:
-                        entry_data = entry.get('data', {})
-                        entry_load = entry_data.get('preal_l1', 0)
-                        entry_solar = (
-                            entry_data.get('ppv1', 0) + 
-                            entry_data.get('ppv2', 0) + 
-                            entry_data.get('ppv3', 0) + 
-                            entry_data.get('ppv4', 0)
-                        )
-                        entry_battery = entry_data.get('pbat', 0)
-                        entry_grid = (
-                            entry_data.get('pmeter_l1', 0) + 
-                            entry_data.get('pmeter_l2', 0) + 
-                            entry_data.get('pmeter_l3', 0) + 
-                            entry_data.get('pmeter_dc', 0)
-                        )
-                        
-                        entry_sum = entry_solar + entry_grid + entry_battery
-                        entry_balance = abs(entry_sum - entry_load)
-                        entry_max_power = max(abs(entry_solar), abs(entry_grid), abs(entry_battery), abs(entry_load))
-                        
-                        if entry_max_power > 0:
-                            recent_balances.append(entry_balance / entry_max_power)
-                    
-                    # If median of recent imbalances is also high, reject
-                    if recent_balances and self.get_median(recent_balances) > adaptive_tolerance:
-                        return self.validate_with_hysteresis(
-                            False, 
-                            f"Consistent power imbalance: {power_balance:.1f}W (ratio: {power_balance/max_power:.2f})"
-                        )
+            # Reject only extreme imbalances now that we have better SOC validation
+            if power_balance > 2 * adaptive_tolerance * max_power:
+                return self.validate_with_hysteresis(
+                    False, 
+                    f"Severe power imbalance: {power_balance:.1f}W (ratio: {power_balance/max_power:.2f})"
+                )
         
-        # 3. Improved battery power limit check with context awareness
+        # Step 5: Battery power limit check
         adjusted_max_power = self.max_power_rating * self.power_contingency
         
         # If we're in a known operating state, be more lenient
@@ -267,46 +329,7 @@ class EnergyDataValidator:
                 f"Battery power ({abs(battery_power):.1f}W) exceeds limit ({adjusted_max_power:.1f}W)"
             )
         
-        # 4. Statistical anomaly detection with improved robustness
-        if len(self.valid_data_points) >= self.window_size:
-            # Use adaptive window size based on data quality
-            window_size = min(self.window_size, len(self.valid_data_points))
-            window = self.valid_data_points[-window_size:]
-            
-            # Extract SOC values and filter out None values
-            soc_values = [entry.get('data', {}).get('soc', 0) for entry in window]
-            soc_values = [v for v in soc_values if v is not None]
-            
-            if soc_values:
-                # Calculate mean, median, and std dev
-                soc_mean = sum(soc_values) / len(soc_values)
-                soc_median = self.get_median(soc_values)
-                
-                # Use median for more robust anomaly detection
-                soc_diff = abs(current_soc - soc_median)
-                
-                # Calculate MAD (Median Absolute Deviation) for robust std dev equivalent
-                abs_deviations = [abs(x - soc_median) for x in soc_values]
-                mad = self.get_median(abs_deviations)
-                
-                # Standard deviation fallback if MAD is too small
-                soc_std = math.sqrt(sum((x - soc_mean) ** 2 for x in soc_values) / len(soc_values))
-                
-                # Use MAD for robust outlier detection, with minimum threshold
-                effective_std = max(mad * 1.4826, 1.0)  # 1.4826 converts MAD to std-dev equivalent
-                
-                # Only apply statistical check for larger windows to avoid false positives
-                if len(soc_values) >= 4 and effective_std > 0.5:
-                    z_score = soc_diff / effective_std
-                    
-                    # Use higher threshold for anomalies
-                    if z_score > self.anomaly_std_dev_threshold:
-                        return self.validate_with_hysteresis(
-                            False, 
-                            f"SOC statistical anomaly: {current_soc:.1f}% vs median {soc_median:.1f}% (z: {z_score:.1f})"
-                        )
-        
-        # If all checks pass, add to valid data points and consider the response valid
+        # All checks passed - store as valid data point
         self.valid_data_points.append({
             'timestamp': timestamp,
             'data': data
@@ -316,8 +339,11 @@ class EnergyDataValidator:
         if len(self.valid_data_points) > self.window_size * 3:
             self.valid_data_points.pop(0)
         
-        # Update last check time
+        # Update tracking variables for next validation
+        self.last_valid_soc = current_soc
+        self.last_valid_soc_timestamp = timestamp
         self.last_checked_timestamp = timestamp
+        self.suspected_spike = False
         
         # Return valid result with hysteresis
         return self.validate_with_hysteresis(True, None)
