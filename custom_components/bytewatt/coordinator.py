@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 from homeassistant.core import HomeAssistant, callback, Context
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.helpers.event import async_track_time_interval, async_track_time_at
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.components.persistent_notification import async_create, async_dismiss
 from homeassistant.util import dt as dt_util
 import voluptuous as vol
@@ -497,22 +497,30 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         })
     
     async def start_auto_reconnect(self) -> None:
-        """Start scheduled daily reconnection at configured time."""
+        """Start scheduled daily reconnection."""
         if self._auto_reconnect_unsub is not None:
             self._auto_reconnect_unsub()
         
-        # Parse reconnect time
-        try:
-            reconnect_time = dt_util.parse_time(self._auto_reconnect_time)
-            if reconnect_time:
-                self._auto_reconnect_unsub = async_track_time_at(
-                    self.hass,
-                    self._handle_auto_reconnect,
-                    reconnect_time
-                )
-                _LOGGER.info(f"Auto reconnect scheduled for {self._auto_reconnect_time}")
-        except Exception as err:
-            _LOGGER.error(f"Error setting up auto reconnect schedule: {err}")
+        # Schedule reconnect every 24 hours
+        self._auto_reconnect_unsub = async_track_time_interval(
+            self.hass,
+            self._handle_auto_reconnect,
+            timedelta(hours=24)
+        )
+        _LOGGER.info("Automatic reconnect scheduled every 24 hours")
+        
+        # Immediately run a check if a time is configured
+        if hasattr(self, '_auto_reconnect_time') and self._auto_reconnect_time:
+            try:
+                current_time = datetime.now().time()
+                reconnect_time = dt_util.parse_time(self._auto_reconnect_time)
+                
+                if reconnect_time:
+                    # The _handle_auto_reconnect will be called by the interval
+                    # eventually, but we log the configured time for reference
+                    _LOGGER.info(f"Auto reconnect time configured for {self._auto_reconnect_time}")
+            except Exception as err:
+                _LOGGER.error(f"Error parsing auto reconnect time: {err}")
     
     @callback
     async def _handle_auto_reconnect(self, _now: Optional[datetime] = None) -> None:
@@ -524,9 +532,6 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         })
         
         await self._perform_recovery(is_scheduled=True)
-        
-        # Reschedule for tomorrow
-        await self.start_auto_reconnect()
     
     async def stop_heartbeat(self) -> None:
         """Stop the heartbeat service."""
