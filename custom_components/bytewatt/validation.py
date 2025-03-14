@@ -3,10 +3,675 @@ import math
 import logging
 import time
 import statistics
-from typing import Dict, Any, Tuple, Optional, List, Deque
+from typing import Dict, Any, Tuple, Optional, List, Deque, Set
 from collections import deque
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class BalancedAdvancedValidator:
+    """
+    Balanced Advanced validator for ByteWatt Battery Data.
+    
+    This validator provides highly accurate detection of anomalies while maintaining
+    good data availability. It employs a multi-tier validation system with separate 
+    trusted and accepted data classifications, and handles recovery points appropriately.
+    """
+    
+    def __init__(self):
+        # Core parameters - balanced thresholds
+        self.max_soc_change_rate = 4.0  # % per minute (less restrictive)
+        self.extreme_soc_jump = 10.0    # % absolute (moderate threshold)
+        self.min_power_threshold = 200  # Watts - ignore balance for low values
+        self.max_battery_power = 8000   # Maximum inverter capacity
+        self.max_time_gap = 600         # Maximum time gap in seconds
+        
+        # History tracking
+        self.window_size = 30           # Moderate window size
+        self.soc_history = deque(maxlen=self.window_size)
+        self.timestamps = deque(maxlen=self.window_size)
+        self.power_history = {
+            'battery': deque(maxlen=self.window_size),
+            'solar': deque(maxlen=self.window_size),
+            'grid': deque(maxlen=self.window_size),
+            'load': deque(maxlen=self.window_size)
+        }
+        
+        # Derived metrics
+        self.soc_delta_history = deque(maxlen=self.window_size)
+        self.soc_rate_history = deque(maxlen=self.window_size)
+        
+        # Multi-tier validation data storage
+        self.trusted_data_points = []   # Strictly validated data (high confidence)
+        self.accepted_data_points = []  # Accepted data (passes baseline validation)
+        self.context_data_points = []   # All data points for contextual awareness (even invalid ones)
+        self.recovery_points = []       # Track recovery points separately
+        
+        # Mode detection and tracking
+        self.current_mode = "unknown"
+        self.mode_history = deque(maxlen=8)
+        self.mode_transition_time = 0
+        
+        # Context tracking for spike pattern detection
+        self.all_soc_values = deque(maxlen=10)  # All SOC values seen, even invalid ones
+        self.all_soc_deltas = deque(maxlen=10)  # All SOC deltas, even from invalid entries
+        
+        # Statistical tracking
+        self.median_soc = None
+        self.mad_soc = 0.5
+        self.soc_ema = None
+        
+        # Validation state
+        self.last_known_good = None
+        self.last_known_good_timestamp = 0
+        self.validation_details = {}
+        self.consecutive_failures = 0
+        self.consecutive_successes = 0
+        
+        # Component weights - prioritize physics over statistics
+        self.weights = {
+            'physics_critical': 1.0,    # Critical physics violations
+            'physics_standard': 0.8,    # Standard physics constraints
+            'statistics': 0.6,          # Statistical outlier detection
+            'mode_consistency': 0.5,    # Mode consistency checks
+            'power_balance': 0.4,       # Power flow balance
+        }
+        
+        # Internal tracking for current entry
+        self._current_entry = None
+        
+        # Recovery point tracking
+        self.is_recovery_point = False
+        self.recovery_pattern = ""
+        self.suspected_spike = False
+    
+    def extract_data(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract relevant data from entry for validation."""
+        if not entry:
+            return {}
+            
+        raw_data = entry
+        timestamp = int(time.time())
+        
+        # Extract key metrics
+        data = {
+            'timestamp': timestamp,
+            'soc': raw_data.get('soc'),
+            'battery_power': raw_data.get('pbat', 0),
+            'solar_power': sum(raw_data.get(f'ppv{i}', 0) for i in range(1, 5)),
+            'grid_power': sum(raw_data.get(f'pmeter_l{i}', 0) for i in range(1, 4)) + raw_data.get('pmeter_dc', 0),
+            'load_power': sum(raw_data.get(f'preal_l{i}', 0) for i in range(1, 4)),
+            'raw': raw_data  # Keep full raw data for reference
+        }
+        
+        return data
+    
+    def update_statistics(self):
+        """Update statistical measures based on history."""
+        if len(self.soc_history) < 3:
+            return
+        
+        # Update SOC median and MAD
+        soc_values = list(self.soc_history)
+        self.median_soc = statistics.median(soc_values)
+        
+        # Calculate Median Absolute Deviation (more robust than standard deviation)
+        absolute_deviations = [abs(x - self.median_soc) for x in soc_values]
+        self.mad_soc = max(statistics.median(absolute_deviations), 0.5)  # Ensure minimum MAD
+    
+    def update_history(self, data: Dict[str, Any]) -> None:
+        """Update historical data for validation context."""
+        if not data or 'soc' not in data:
+            return
+            
+        # Update core histories
+        self.soc_history.append(data['soc'])
+        self.timestamps.append(data['timestamp'])
+        self.power_history['battery'].append(data['battery_power'])
+        self.power_history['solar'].append(data['solar_power'])
+        self.power_history['grid'].append(data['grid_power'])
+        self.power_history['load'].append(data['load_power'])
+        
+        # Calculate and store SOC delta and rate
+        if len(self.soc_history) >= 2 and len(self.timestamps) >= 2:
+            soc_delta = self.soc_history[-1] - self.soc_history[-2]
+            self.soc_delta_history.append(soc_delta)
+            
+            time_diff = (self.timestamps[-1] - self.timestamps[-2]) / 60.0  # minutes
+            if time_diff > 0:
+                rate = soc_delta / time_diff
+                self.soc_rate_history.append(rate)
+        
+        # Update EMA with adaptive alpha
+        if self.soc_ema is None:
+            self.soc_ema = data['soc']
+        else:
+            alpha = 0.2  # Standard alpha
+            self.soc_ema = alpha * data['soc'] + (1 - alpha) * self.soc_ema
+        
+        # Update system mode
+        self.detect_system_mode(data)
+        
+        # Update overall statistics
+        self.update_statistics()
+    
+    def detect_system_mode(self, data: Dict[str, Any]) -> None:
+        """Detect the current system operating mode based on power flows."""
+        battery = data['battery_power']
+        solar = data['solar_power']
+        grid = data['grid_power']
+        load = data['load_power']
+        
+        # Determine primary mode based on power flows
+        if solar > 1000:  # Significant solar production
+            if battery < -500:  # Charging (negative = charging)
+                mode = "solar_charging"
+            elif battery > 500:  # Discharging
+                mode = "solar_discharge"
+            elif grid < -500:  # Exporting to grid
+                mode = "solar_export"
+            else:
+                mode = "solar_direct"
+        elif battery < -500:  # Charging from grid
+            mode = "grid_charging"
+        elif battery > 500:  # Discharging to load
+            mode = "battery_discharge"
+        elif grid > 500:  # Grid import
+            mode = "grid_import"
+        elif grid < -500:  # Grid export
+            mode = "grid_export"
+        else:  # Low power state
+            mode = "idle"
+        
+        # If mode changed, record transition time
+        if mode != self.current_mode:
+            self.mode_transition_time = data['timestamp']
+            
+        # Update mode
+        self.current_mode = mode
+        self.mode_history.append(mode)
+    
+    def validate_physics_critical(self, data: Dict[str, Any], prev_data: Dict[str, Any]) -> Tuple[float, str]:
+        """
+        Validate against critical physics violations that should never occur.
+        Returns (score, reason_if_invalid).
+        """
+        if not data or not prev_data or 'soc' not in data or 'soc' not in prev_data:
+            return 1.0, ""
+        
+        # Calculate time difference and SOC change
+        time_diff_seconds = data['timestamp'] - prev_data['timestamp']
+        if time_diff_seconds <= 0 or time_diff_seconds > self.max_time_gap:
+            return 1.0, ""
+            
+        time_diff_minutes = time_diff_seconds / 60.0
+        current_soc = data['soc']
+        prev_soc = prev_data['soc']
+        soc_change = abs(current_soc - prev_soc)
+        soc_direction = 1 if current_soc > prev_soc else (-1 if current_soc < prev_soc else 0)
+        
+        # Check for extreme SOC jumps (physically impossible)
+        extreme_limit = 20.0  # Very conservative - only flag extremely obvious problems
+        if soc_change > extreme_limit:
+            return 0.0, f"Extreme SOC jump: {soc_change:.1f}% (hard limit: {extreme_limit:.1f}%)"
+        
+        # Check if this entry is a recovery from a large jump
+        # This catches the scenario where SOC jumps from A → B and then back to approximately A
+        if len(self.soc_history) >= 2:
+            # If we have at least 2 previous readings, check for recovery pattern
+            if abs(current_soc - self.soc_history[-2]) < 5.0 and abs(self.soc_history[-1] - self.soc_history[-2]) > 15.0:
+                # This is a recovery pattern: A → B → (back to ~A)
+                # Instead of rejecting, flag it as a recovery point but allow validation to continue
+                entry = getattr(self, '_current_entry', None)
+                if entry is not None:
+                    # Track internally but don't reject
+                    self.is_recovery_point = True
+                    self.recovery_pattern = f"{self.soc_history[-2]:.1f}% → {self.soc_history[-1]:.1f}% → {current_soc:.1f}%"
+        
+        # Check for severe physical contradictions with significant power
+        # This catches cases with strong battery power and SOC moving the wrong way
+        avg_battery_power = (data['battery_power'] + prev_data.get('battery_power', 0)) / 2
+        if abs(avg_battery_power) > 2000:  # Only with very strong power
+            expected_soc_direction = 1 if avg_battery_power < 0 else -1  # neg power = charging = SOC increase
+            
+            # Strong power and SOC is clearly moving the wrong way
+            if soc_direction != 0 and soc_direction != expected_soc_direction and soc_change > 5.0:
+                power_str = "charging" if avg_battery_power < 0 else "discharging"
+                soc_str = "increasing" if soc_direction > 0 else "decreasing"
+                return 0.0, f"Critical physics violation: SOC {soc_str} by {soc_change:.1f}% while {power_str} at {abs(avg_battery_power):.0f}W"
+        
+        # Check for physics violation with any power level
+        if data['battery_power'] < -300 and prev_data.get('battery_power', 0) < -300:  # Both charging
+            if soc_direction < 0 and soc_change > 10.0:  # Large decrease while charging
+                return 0.0, f"Physics violation: SOC decreased by {soc_change:.1f}% while charging"
+                
+        if data['battery_power'] > 300 and prev_data.get('battery_power', 0) > 300:  # Both discharging
+            if soc_direction > 0 and soc_change > 10.0:  # Large increase while discharging
+                return 0.0, f"Physics violation: SOC increased by {soc_change:.1f}% while discharging"
+        
+        # BMS critical violations
+        # 100% SOC with charging - impossible due to BMS
+        if current_soc >= 99.9 and data['battery_power'] < -500:
+            return 0.0, f"BMS violation: Charging at 100% SOC"
+            
+        # 0% SOC with discharging - impossible due to BMS
+        if current_soc <= 0.1 and data['battery_power'] > 500:
+            return 0.0, f"BMS violation: Discharging at 0% SOC"
+            
+        # All critical checks passed
+        return 1.0, ""
+    
+    def validate_physics_standard(self, data: Dict[str, Any], prev_data: Dict[str, Any]) -> Tuple[float, str]:
+        """
+        Validate against standard physics constraints.
+        Less restrictive than critical validation.
+        """
+        if not data or not prev_data or 'soc' not in data or 'soc' not in prev_data:
+            return 1.0, ""
+        
+        # Calculate time difference and SOC change
+        time_diff_seconds = data['timestamp'] - prev_data['timestamp']
+        if time_diff_seconds <= 0 or time_diff_seconds > self.max_time_gap:
+            return 1.0, ""
+            
+        time_diff_minutes = time_diff_seconds / 60.0
+        current_soc = data['soc']
+        prev_soc = prev_data['soc']
+        soc_change = abs(current_soc - prev_soc)
+        
+        # Check SOC jumps against our normal threshold
+        if soc_change > self.extreme_soc_jump:
+            return 0.0, f"Large SOC jump: {soc_change:.1f}% (limit: {self.extreme_soc_jump:.1f}%)"
+
+        # Detect the recovery from a large spike specifically
+        # Looking for "recovery jumps" where large SOC changes occur in short time
+        # Especially those that cancel a previous large change
+        if len(self.soc_delta_history) > 0:
+            prev_delta = self.soc_delta_history[-1]  # Last SOC delta
+            current_delta = current_soc - prev_soc  # Current SOC delta
+            
+            # If we have a large change in the opposite direction of a previous large change
+            if abs(prev_delta) > 15.0 and abs(current_delta) > 15.0 and (prev_delta * current_delta < 0):
+                # This is a typical recovery pattern - flag but don't reject
+                # Track internally but don't reject
+                self.is_recovery_point = True
+                self.recovery_pattern = f"Delta pattern: {prev_delta:+.1f}% followed by {current_delta:+.1f}%"
+        
+        # Common spike pattern: jumps to/from exact values like 0%, 100%
+        exact_values = [0, 100]
+        if (current_soc in exact_values or prev_soc in exact_values) and soc_change > 8.0:
+            return 0.3, f"Suspicious SOC change to/from {current_soc:.0f}%"
+            
+        # Calculate SOC change rate
+        soc_rate = soc_change / time_diff_minutes
+        
+        # Calculate adaptive threshold based on SOC level and power
+        avg_soc = (current_soc + prev_soc) / 2
+        adaptive_max_rate = self.max_soc_change_rate
+        
+        # Adjust threshold based on SOC range
+        if avg_soc < 10 or avg_soc > 90:
+            adaptive_max_rate *= 0.7  # 30% reduction in extreme ranges
+        elif avg_soc < 20 or avg_soc > 80:
+            adaptive_max_rate *= 0.85  # 15% reduction in near-extreme ranges
+            
+        # Adjust based on power level - higher power = higher allowed rate
+        avg_power = abs((data['battery_power'] + prev_data.get('battery_power', 0)) / 2)
+        if avg_power > 2000:  # High power allows higher rate
+            adaptive_max_rate *= 1.3
+            
+        # During mode transitions, allow higher rate
+        if data['timestamp'] - self.mode_transition_time < 180:  # Within 3 minutes of mode change
+            adaptive_max_rate *= 1.3
+            
+        # Compute score based on how close to the limit we are
+        if soc_rate <= adaptive_max_rate * 0.5:  # Well within limits
+            return 1.0, ""
+        elif soc_rate <= adaptive_max_rate * 0.8:  # Getting closer to limits
+            return 0.9, ""
+        elif soc_rate <= adaptive_max_rate:  # Near the limit but acceptable
+            return 0.7, ""
+        elif soc_rate <= adaptive_max_rate * 1.3:  # Slightly above limit, but could be valid
+            return 0.4, f"High SOC change rate: {soc_rate:.1f}%/min (limit: {adaptive_max_rate:.1f}%/min)"
+        else:  # Well above limit
+            return 0.1, f"Very high SOC change rate: {soc_rate:.1f}%/min (limit: {adaptive_max_rate:.1f}%/min)"
+    
+    def validate_statistics(self, data: Dict[str, Any]) -> Tuple[float, str]:
+        """
+        Validate using statistical methods based on historical patterns.
+        """
+        if not data or self.median_soc is None or len(self.soc_history) < 5:
+            return 1.0, ""
+        
+        # Calculate robust z-score using MAD
+        # 0.6745 is a scaling factor for normal distribution equivalence
+        z_score = 0.6745 * abs(data['soc'] - self.median_soc) / self.mad_soc
+        
+        # Use less restrictive threshold than before
+        threshold = 6.0  # Much higher z-score threshold
+        
+        if z_score > threshold:
+            return 0.0, f"Statistical outlier: SOC {data['soc']:.1f}% (z-score: {z_score:.1f})"
+        elif z_score > threshold * 0.7:
+            return 0.4, f"Potential outlier: SOC {data['soc']:.1f}% (z-score: {z_score:.1f})"
+        
+        # Also check for bipolar pattern (rapid up-down or down-up)
+        if len(self.soc_delta_history) >= 2:
+            last_deltas = list(self.soc_delta_history)[-2:]
+            
+            # Look for sign change with significant magnitude in both directions
+            if (last_deltas[0] > 5.0 and last_deltas[1] < -5.0) or \
+               (last_deltas[0] < -5.0 and last_deltas[1] > 5.0):
+                swing = abs(last_deltas[0]) + abs(last_deltas[1])
+                return 0.1, f"Bipolar SOC pattern detected: {swing:.1f}% total swing"
+        
+        return 1.0, ""
+    
+    def validate_mode_consistency(self, data: Dict[str, Any]) -> Tuple[float, str]:
+        """
+        Validate consistency with current operating mode.
+        """
+        if not data or len(self.mode_history) < 3:
+            return 1.0, ""
+        
+        # Skip during mode transitions
+        if data['timestamp'] - self.mode_transition_time < 180:  # Within 3 minutes of mode change
+            return 1.0, ""
+        
+        # Get current dominant mode
+        mode_counts = {}
+        for mode in self.mode_history:
+            mode_counts[mode] = mode_counts.get(mode, 0) + 1
+        
+        if not mode_counts:
+            return 1.0, ""
+            
+        dominant_mode = max(mode_counts.items(), key=lambda x: x[1])[0]
+        
+        # Skip if mode is not stable
+        if mode_counts[dominant_mode] < 0.6 * len(self.mode_history):
+            return 1.0, ""
+        
+        # Only check obvious contradictions
+        if dominant_mode == "solar_charging" and data['solar_power'] < 200:
+            return 0.3, f"Mode inconsistency: solar_charging mode with no solar power"
+            
+        if dominant_mode == "battery_discharge" and data['battery_power'] < 0:
+            return 0.3, f"Mode inconsistency: battery_discharge mode but battery is charging"
+        
+        return 1.0, ""
+    
+    def validate_power_balance(self, data: Dict[str, Any]) -> Tuple[float, str]:
+        """
+        Validate power measurements using energy conservation principles.
+        Less restrictive than before to allow more data through.
+        """
+        if not data:
+            return 1.0, ""
+        
+        # Power flow validation
+        solar_power = data['solar_power']
+        battery_power = data['battery_power']
+        grid_power = data['grid_power']
+        load_power = data['load_power']
+        
+        # Skip validation for very low power
+        max_power = max(abs(solar_power), abs(grid_power), abs(battery_power), abs(load_power))
+        if max_power < self.min_power_threshold:
+            return 1.0, ""
+        
+        # Calculate power flows with direction normalization
+        # Power in = solar + grid import + battery discharge 
+        power_in = solar_power
+        if grid_power > 0:  # Grid import
+            power_in += grid_power
+        if battery_power > 0:  # Battery discharging
+            power_in += battery_power
+            
+        # Power out = load + grid export + battery charge
+        power_out = abs(load_power)  # Load is always consumption (positive)
+        if grid_power < 0:  # Grid export
+            power_out += abs(grid_power)
+        if battery_power < 0:  # Battery charging
+            power_out += abs(battery_power)
+        
+        # Calculate imbalance (should ideally be 0)
+        power_imbalance = abs(power_in - power_out)
+        imbalance_ratio = power_imbalance / max(max_power, 1)  # Avoid division by 0
+        
+        # Very generous tolerance - only flag extreme cases
+        adaptive_tolerance = 0.6  # 60% tolerance
+        if max_power > 5000:
+            adaptive_tolerance = 0.7  # 70% for high power
+        
+        # More tolerant scoring
+        if imbalance_ratio <= adaptive_tolerance * 0.5:
+            return 1.0, ""
+        elif imbalance_ratio <= adaptive_tolerance:
+            return 0.8, ""
+        elif imbalance_ratio <= adaptive_tolerance * 1.5:
+            return 0.5, f"Power imbalance: {imbalance_ratio:.2f} (limit: {adaptive_tolerance:.2f})"
+        else:
+            return 0.1, f"Severe power imbalance: {imbalance_ratio:.2f} (limit: {adaptive_tolerance:.2f})"
+    
+    def calculate_combined_score(self, scores: Dict[str, Tuple[float, str]]) -> Tuple[float, bool, float, str]:
+        """
+        Calculate combined score with multi-tier classification.
+        Returns:
+            (overall_score, is_valid, trust_score, primary_reason)
+            
+        The validator uses two thresholds:
+        - Validity threshold: Lower bar for accepted data
+        - Trust threshold: Higher bar for trusted data
+        """
+        total_weight = 0
+        weighted_score = 0
+        reasons = []
+        
+        # Critical checks are non-negotiable - fail immediately on critical physics violations
+        if 'physics_critical' in scores:
+            critical_score, critical_reason = scores['physics_critical']
+            if critical_score == 0.0:  # Critical failure
+                return 0.0, False, 0.0, critical_reason
+        
+        # Calculate weighted score for other components
+        for key, (score, reason) in scores.items():
+            weight = self.weights.get(key, 0.5)
+            weighted_score += score * weight
+            total_weight += weight
+            
+            # Collect failure reasons
+            if score < 0.5 and reason:
+                reasons.append(reason)
+        
+        # Calculate final normalized score
+        final_score = weighted_score / total_weight if total_weight > 0 else 0.5
+        
+        # Calculate trust score - must be high confidence to be trusted
+        trust_score = final_score
+        
+        # Determine validity based on moderate threshold
+        is_valid = final_score >= 0.4  # More permissive validity threshold
+        
+        # Return the primary reason if invalid
+        primary_reason = reasons[0] if reasons and not is_valid else ""
+        
+        return final_score, is_valid, trust_score, primary_reason
+    
+    def apply_hysteresis(self, is_valid: bool, score: float) -> bool:
+        """
+        Apply hysteresis to validation results to prevent oscillation.
+        """
+        # Be more lenient after multiple failures to prevent getting stuck
+        if not is_valid and self.consecutive_failures >= 3:
+            threshold_reduction = min(0.05 * self.consecutive_failures, 0.15)  # Up to 0.15 reduction
+            return score >= (0.4 - threshold_reduction)
+        
+        # Be slightly more strict after many successes
+        if is_valid and self.consecutive_successes >= 5:
+            return score >= 0.45
+            
+        return is_valid
+    
+    def update_context_tracking(self, data: Dict[str, Any]) -> None:
+        """
+        Update context tracking with all entries, even invalid ones.
+        This helps detect spike patterns across both valid and invalid entries.
+        """
+        if not data or 'soc' not in data:
+            return
+            
+        # Add to context data points
+        self.context_data_points.append({
+            'timestamp': data['timestamp'],
+            'data': data
+        })
+        
+        # Track all SOC values for pattern detection
+        current_soc = data['soc']
+        self.all_soc_values.append(current_soc)
+        
+        # Calculate SOC deltas across all entries
+        if len(self.all_soc_values) >= 2:
+            delta = current_soc - self.all_soc_values[-2]
+            self.all_soc_deltas.append(delta)
+            
+        # Check for recovery pattern in context
+        if len(self.all_soc_values) >= 3 and len(self.all_soc_deltas) >= 2:
+            # Get last 3 SOC values
+            soc_1, soc_2, soc_3 = list(self.all_soc_values)[-3:]
+            
+            # Check for A → B → A pattern (where A and B differ significantly)
+            if abs(soc_1 - soc_3) < 5.0 and abs(soc_2 - soc_1) > 15.0:
+                # This is a spike and recover pattern
+                self.suspected_spike = True
+    
+    def is_valid_response(self, entry: Dict[str, Any], timestamp: float) -> Tuple[bool, Optional[str]]:
+        """
+        Validate an API response data.
+        
+        Args:
+            entry: The data to validate
+            timestamp: Unix timestamp of the data
+            
+        Returns:
+            (is_valid, reason_if_invalid)
+        """
+        # Convert to interface compatible with validate_entry
+        return self.validate_entry(entry)
+    
+    def validate_entry(self, entry: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """
+        Validate a single entry using the balanced approach.
+        
+        Args:
+            entry: The entry to validate
+            
+        Returns:
+            (is_valid, reason_if_invalid)
+        """
+        # Store current entry for reference in validation functions
+        self._current_entry = entry
+        
+        # Reset recovery point tracking for this entry
+        self.is_recovery_point = False
+        self.recovery_pattern = ""
+        
+        # Extract relevant data
+        data = self.extract_data(entry)
+        if not data:
+            return False, "Invalid API response or missing data"
+        
+        # First entry is always valid (no prior reference)
+        if self.last_known_good is None:
+            self.last_known_good = entry
+            self.last_known_good_timestamp = data['timestamp']
+            self.update_history(data)
+            
+            # Add to all tracking lists
+            self.accepted_data_points.append({
+                'timestamp': data['timestamp'],
+                'data': data
+            })
+            self.trusted_data_points.append({
+                'timestamp': data['timestamp'],
+                'data': data
+            })
+            
+            # Update context tracking
+            self.update_context_tracking(data)
+            
+            return True, None
+        
+        # Always update context tracking before validation
+        # This gives us awareness of previous entries even if they were invalid
+        self.update_context_tracking(data)
+        
+        # Get previous valid data for comparison
+        prev_data = self.extract_data(self.last_known_good)
+        
+        # Run validation components
+        scores = {
+            'physics_critical': self.validate_physics_critical(data, prev_data),
+            'physics_standard': self.validate_physics_standard(data, prev_data),
+            'statistics': self.validate_statistics(data),
+            'mode_consistency': self.validate_mode_consistency(data),
+            'power_balance': self.validate_power_balance(data)
+        }
+        
+        # Store component scores for debugging
+        self.validation_details = {k: v[0] for k, v in scores.items()}
+        
+        # Calculate final score with multi-tier classification
+        score, is_valid, trust_score, reason = self.calculate_combined_score(scores)
+        
+        # Apply hysteresis for stability
+        is_valid = self.apply_hysteresis(is_valid, score)
+        
+        # Update state tracking
+        if is_valid:
+            self.consecutive_successes += 1
+            self.consecutive_failures = 0
+            
+            # Update tracking for valid entries
+            self.last_known_good = entry
+            self.last_known_good_timestamp = data['timestamp']
+            self.update_history(data)
+            
+            # Add to accepted data points
+            data_point = {
+                'timestamp': data['timestamp'],
+                'data': data
+            }
+            
+            # Store recovery point information internally but still mark as valid
+            if self.is_recovery_point:
+                # Add to recovery points list for tracking
+                recovery_data_point = data_point.copy()
+                recovery_data_point['recovery_pattern'] = self.recovery_pattern
+                self.recovery_points.append(recovery_data_point)
+                
+                # Log the recovery point (but don't reject it)
+                _LOGGER.info(f"Detected SOC recovery pattern: {self.recovery_pattern}")
+                
+            self.accepted_data_points.append(data_point)
+            
+            # If high trust score, add to trusted data points
+            # Recovery points aren't automatically trusted, even if they pass validation
+            if trust_score >= 0.7 and not self.is_recovery_point:  
+                self.trusted_data_points.append(data_point.copy())
+        else:
+            self.consecutive_failures += 1
+            self.consecutive_successes = 0
+            
+            # For data that almost makes the cut, still update some tracking
+            if score >= 0.3:  # Near-miss data
+                self.detect_system_mode(data)
+        
+        # Clear current entry reference to avoid memory leaks
+        self._current_entry = None
+        
+        return is_valid, reason if not is_valid else None
 
 
 class NeuralPhysicsValidator:

@@ -4,7 +4,7 @@ import time
 from typing import Optional, Dict, Any
 
 from ..models import SoCData, GridData
-from ..validation import EnergyDataValidator
+from ..validation import EnergyDataValidator, BalancedAdvancedValidator
 from .client import ByteWattAPIClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,9 +17,9 @@ class BatteryDataAPI:
         """Initialize the battery data API client."""
         self.api_client = api_client
         
-        # Initialize data validators
-        self.soc_validator = EnergyDataValidator()
-        self.grid_validator = EnergyDataValidator()
+        # Initialize data validators - now using the advanced balanced validator by default
+        self.soc_validator = BalancedAdvancedValidator()
+        self.grid_validator = EnergyDataValidator()  # Still using original validator for grid data
         
         # For tracking last valid grid data
         self._last_valid_grid_data = None
