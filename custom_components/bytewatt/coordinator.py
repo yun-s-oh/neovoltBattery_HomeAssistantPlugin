@@ -398,12 +398,15 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug("Could not dismiss notification - may not exist yet")
             
             # Return the data along with connection status
-            return {
+            data = {
                 "battery": self._last_battery_data or {},
                 "connection_status": "connected" if battery_data else "partial",
                 "circuit_breaker": self.circuit_breaker.state.value,
                 "last_updated": datetime.now().isoformat()
             }
+            
+            _LOGGER.debug(f"Coordinator data refreshed with keys: {list(data.keys())}")
+            return data
         except Exception as err:
             # Record the error in diagnostics
             self._log_diagnostic("update_error", {

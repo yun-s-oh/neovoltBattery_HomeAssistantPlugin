@@ -369,6 +369,39 @@ class ByteWattGridSensor(ByteWattSensor):
 
 class ByteWattBatterySettingsSensor(ByteWattSensor):
     """Representation of a Byte-Watt Battery Settings Sensor."""
+    
+    def __init__(
+        self,
+        coordinator,
+        config_entry,
+        sensor_type,
+        name,
+        device_class,
+        attribute,
+        unit,
+        icon,
+        entity_category=None,
+    ):
+        """Initialize the sensor with settings data."""
+        super().__init__(
+            coordinator, 
+            config_entry, 
+            sensor_type, 
+            name, 
+            device_class, 
+            attribute, 
+            unit, 
+            icon,
+            entity_category
+        )
+        # Initialize directly here to avoid attribute access errors
+        try:
+            # Make sure the client we'll access has the attribute to avoid errors
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if not hasattr(client, "_settings_cache"):
+                client._settings_cache = {}
+        except Exception as ex:
+            _LOGGER.debug(f"Error initializing settings cache: {ex}")
 
     @property
     def native_value(self):

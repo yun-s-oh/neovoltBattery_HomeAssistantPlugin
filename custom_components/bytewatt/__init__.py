@@ -104,10 +104,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Register all battery control services and recovery services
     await register_battery_services(hass, client, coordinator)
 
-    for platform in PLATFORMS:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, platform)
-        )
+    # Setup platforms - use the newer async_forward_entry_setups to avoid deprecation warning
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 

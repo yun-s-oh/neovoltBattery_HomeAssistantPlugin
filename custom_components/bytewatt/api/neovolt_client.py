@@ -32,6 +32,7 @@ class NeovoltClient:
         self.base_url = base_url
         self.session = async_get_clientsession(hass)
         self.token: Optional[str] = None
+        self._settings_cache = {}
     
     async def async_login(self) -> bool:
         """Login to the Neovolt API using encrypted password."""
