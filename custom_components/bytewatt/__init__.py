@@ -206,11 +206,14 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
                 )
             
             message = "<br>".join(summary)
-            await hass.components.persistent_notification.async_create(
-                message,
-                title="ByteWatt Health Check Results",
-                notification_id="bytewatt_health_check"
-            )
+            try:
+                await hass.components.persistent_notification.async_create(
+                    message,
+                    title="ByteWatt Health Check Results",
+                    notification_id="bytewatt_health_check"
+                )
+            except (AttributeError, TypeError) as e:
+                _LOGGER.error(f"Could not create health check notification: {e}")
         else:
             _LOGGER.error("No ByteWatt integrations found for health check")
     
@@ -240,11 +243,14 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         if results:
             message = "Diagnostics Mode: "
             message += "Enabled" if list(results.values())[0].get("diagnostics_mode", False) else "Disabled"
-            await hass.components.persistent_notification.async_create(
-                message,
-                title="ByteWatt Diagnostics",
-                notification_id="bytewatt_diagnostics"
-            )
+            try:
+                await hass.components.persistent_notification.async_create(
+                    message,
+                    title="ByteWatt Diagnostics",
+                    notification_id="bytewatt_diagnostics"
+                )
+            except (AttributeError, TypeError) as e:
+                _LOGGER.error(f"Could not create diagnostics notification: {e}")
         else:
             _LOGGER.error("No ByteWatt integrations found to toggle diagnostics")
     

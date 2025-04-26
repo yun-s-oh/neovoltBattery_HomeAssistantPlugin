@@ -392,7 +392,10 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             
             # If we got here successfully, ensure any error notifications are dismissed
             if self._notify_on_recovery:
-                await async_dismiss(self.hass, NOTIFICATION_ERROR)
+                try:
+                    await self.hass.components.persistent_notification.async_dismiss(NOTIFICATION_ERROR)
+                except (AttributeError, TypeError):
+                    _LOGGER.debug("Could not dismiss notification - may not exist yet")
             
             # Return the data along with connection status
             return {
@@ -434,12 +437,14 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             else:
                 # Create error notification if enabled
                 if self._notify_on_recovery:
-                    await async_create(
-                        self.hass,
-                        f"ByteWatt integration error: {err}",
-                        title="ByteWatt Connection Error",
-                        notification_id=NOTIFICATION_ERROR
-                    )
+                    try:
+                        await self.hass.components.persistent_notification.async_create(
+                            f"ByteWatt integration error: {err}",
+                            title="ByteWatt Connection Error",
+                            notification_id=NOTIFICATION_ERROR
+                        )
+                    except (AttributeError, TypeError):
+                        _LOGGER.error(f"Could not create error notification: {err}")
                     
                 raise UpdateFailed(f"Error communicating with API: {err}")
     
@@ -595,13 +600,15 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         
         # Create notification about recovery attempt if enabled
         if self._notify_on_recovery:
-            message = f"ByteWatt integration is attempting to reconnect ({recovery_type} recovery)"
-            await async_create(
-                self.hass,
-                message,
-                title="ByteWatt Recovery",
-                notification_id=NOTIFICATION_RECOVERY
-            )
+            try:
+                message = f"ByteWatt integration is attempting to reconnect ({recovery_type} recovery)"
+                await self.hass.components.persistent_notification.async_create(
+                    message,
+                    title="ByteWatt Recovery",
+                    notification_id=NOTIFICATION_RECOVERY
+                )
+            except (AttributeError, TypeError) as e:
+                _LOGGER.error(f"Could not create recovery notification: {e}")
         
         try:
             # Step 1: Network diagnostics (if diagnostics enabled)
@@ -628,13 +635,15 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             
             # Update notification if enabled
             if self._notify_on_recovery:
-                await async_dismiss(self.hass, NOTIFICATION_RECOVERY)
-                await async_create(
-                    self.hass,
-                    "ByteWatt integration successfully reconnected to the API",
-                    title="ByteWatt Recovery Success",
-                    notification_id=NOTIFICATION_RECOVERY
-                )
+                try:
+                    await self.hass.components.persistent_notification.async_dismiss(NOTIFICATION_RECOVERY)
+                    await self.hass.components.persistent_notification.async_create(
+                        "ByteWatt integration successfully reconnected to the API",
+                        title="ByteWatt Recovery Success",
+                        notification_id=NOTIFICATION_RECOVERY
+                    )
+                except (AttributeError, TypeError) as e:
+                    _LOGGER.error(f"Could not update recovery notification: {e}")
         except Exception as err:
             _LOGGER.error(f"ByteWatt recovery failed: {err}")
             
@@ -654,12 +663,14 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             
             # Update notification if enabled
             if self._notify_on_recovery:
-                await async_create(
-                    self.hass,
-                    f"ByteWatt recovery attempt failed: {err}. Will retry in {next_check_seconds} seconds.",
-                    title="ByteWatt Recovery Failed",
-                    notification_id=NOTIFICATION_RECOVERY
-                )
+                try:
+                    await self.hass.components.persistent_notification.async_create(
+                        f"ByteWatt recovery attempt failed: {err}. Will retry in {next_check_seconds} seconds.",
+                        title="ByteWatt Recovery Failed",
+                        notification_id=NOTIFICATION_RECOVERY
+                    )
+                except (AttributeError, TypeError) as e:
+                    _LOGGER.error(f"Could not update failure notification: {e}")
             
             # Schedule a sooner check if needed
             if backoff_factor > 1:
