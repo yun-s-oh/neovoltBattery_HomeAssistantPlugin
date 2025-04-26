@@ -1,6 +1,6 @@
 """Sensor platform for Byte-Watt integration."""
 import logging
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Any
 from datetime import datetime
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
@@ -293,11 +293,11 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         """Return the state of the sensor."""
         try:
-            if not self.coordinator.data or "soc" not in self.coordinator.data:
+            if not self.coordinator.data or "battery" not in self.coordinator.data:
                 return None
             
-            soc_data = self.coordinator.data["soc"]
-            return soc_data.get(self._attribute)
+            battery_data = self.coordinator.data["battery"]
+            return battery_data.get(self._attribute)
         except Exception as ex:
             _LOGGER.error(f"Error getting sensor state: {ex}")
             return None
@@ -338,14 +338,33 @@ class ByteWattGridSensor(ByteWattSensor):
     def native_value(self):
         """Return the state of the sensor."""
         try:
-            if not self.coordinator.data or "grid" not in self.coordinator.data:
+            if not self.coordinator.data or "battery" not in self.coordinator.data:
                 return None
             
-            grid_data = self.coordinator.data["grid"]
-            return grid_data.get(self._attribute)
+            # In the new API, all data is in the battery object
+            # Try to find matching attributes in the battery data
+            battery_data = self.coordinator.data["battery"]
+            
+            # Handle special case for energy metrics which may be in a different format
+            if self._attribute in battery_data:
+                return battery_data.get(self._attribute)
+            
+            # If data isn't available, we'll log it at debug level
+            _LOGGER.debug(f"Grid sensor {self._attribute} data not found in battery response")
+            return None
         except Exception as ex:
             _LOGGER.error(f"Error getting grid sensor state: {ex}")
             return None
+            
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        # Many grid sensors may not be available in the new API
+        if not self.coordinator.data or "battery" not in self.coordinator.data:
+            return False
+            
+        # Check if this attribute exists in the data
+        return self._attribute in self.coordinator.data["battery"]
 
 
 class ByteWattBatterySettingsSensor(ByteWattSensor):
@@ -354,13 +373,17 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        try:
-            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            settings = client._settings_cache
-            
-            if settings:
-                return settings.get(self._attribute)
-            return None
-        except Exception as ex:
-            _LOGGER.error(f"Error getting battery settings sensor state: {ex}")
-            return None
+        # Battery settings control is no longer supported in the new API version
+        return None
+    
+    @property
+    def available(self) -> bool:
+        """Return if entity is available - settings are no longer available."""
+        return False
+    
+    @property
+    def extra_state_attributes(self) -> Dict[str, Any]:
+        """Return the state attributes."""
+        return {
+            "unsupported": "Battery settings control is no longer supported in the new API version"
+        }
