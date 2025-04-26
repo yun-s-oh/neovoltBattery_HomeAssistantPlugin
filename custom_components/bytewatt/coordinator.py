@@ -409,7 +409,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             })
             
             # If we have cached data, use it rather than failing
-            if self._last_soc_data:
+            if self._last_battery_data:
                 _LOGGER.error(f"Error communicating with API: {err}")
                 _LOGGER.warning("Using cached data due to communication error")
                 
@@ -425,8 +425,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                         cache_age = "stale"
                 
                 return {
-                    "soc": self._last_soc_data,
-                    "grid": self._last_grid_data or {},
+                    "battery": self._last_battery_data,
                     "connection_status": "cached",
                     "cache_age": cache_age,
                     "circuit_breaker": self.circuit_breaker.state.value,
@@ -543,7 +542,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         if self._last_successful_update is None:
             _LOGGER.debug("No successful update recorded yet")
             # Try to trigger an update if we have no data yet
-            if self._last_soc_data is None:
+            if self._last_battery_data is None:
                 await self._perform_recovery()
             return
         
