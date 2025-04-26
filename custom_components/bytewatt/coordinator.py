@@ -232,8 +232,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         self.client = client
         self.hass = hass
         self.entry_id = entry_id
-        self._last_soc_data = None
-        self._last_grid_data = None
+        self._last_battery_data = None
         self._scan_interval = scan_interval
         self._last_successful_update: Optional[datetime] = None
         self._consecutive_stale_checks = 0
@@ -349,10 +348,9 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 })
                 
                 # Use cached data if available
-                if self._last_soc_data:
+                if self._last_battery_data:
                     return {
-                        "soc": self._last_soc_data,
-                        "grid": self._last_grid_data or {},
+                        "battery": self._last_battery_data,
                         "connection_status": "limited",
                         "circuit_breaker": self.circuit_breaker.state.value
                     }
@@ -361,62 +359,34 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                         f"Circuit breaker is {self.circuit_breaker.state.value} and no cached data available"
                     )
             
-            # First, get SOC data with retries
-            with self._timed_operation("get_soc_data"):
-                soc_data = await self.hass.async_add_executor_job(self.client.get_soc_data)
+            # Get battery data
+            with self._timed_operation("get_battery_data"):
+                battery_data = await self.client.get_battery_data()
             
-            # If we got SOC data, update our cached version and last successful time
-            if soc_data:
-                self._last_soc_data = soc_data
+            # If we got battery data, update our cached version and last successful time
+            if battery_data:
+                self._last_battery_data = battery_data
                 self._last_successful_update = datetime.now()
                 self._consecutive_stale_checks = 0
                 self._recovery_attempts = 0  # Reset recovery attempts on successful update
                 
                 self._log_diagnostic("data_update", {
-                    "type": "soc_data",
+                    "type": "battery_data",
                     "result": "success"
                 })
-            elif self._last_soc_data is None:
+            elif self._last_battery_data is None:
                 # Only raise error if we never got data
-                error_msg = "Failed to get SOC data and no cached data available"
+                error_msg = "Failed to get battery data and no cached data available"
                 self._log_diagnostic("data_update", {
-                    "type": "soc_data",
+                    "type": "battery_data",
                     "result": "failure",
                     "error": error_msg
                 })
                 raise UpdateFailed(error_msg)
             else:
-                _LOGGER.warning("Using cached SOC data due to API error")
+                _LOGGER.warning("Using cached battery data due to API error")
                 self._log_diagnostic("data_update", {
-                    "type": "soc_data",
-                    "result": "fallback_to_cache"
-                })
-            
-            # Try to get grid data
-            with self._timed_operation("get_grid_data"):
-                grid_data = await self.hass.async_add_executor_job(self.client.get_grid_data)
-            
-            # If we got grid data, update our cached version
-            if grid_data:
-                self._last_grid_data = grid_data
-                self._log_diagnostic("data_update", {
-                    "type": "grid_data",
-                    "result": "success"
-                })
-            elif self._last_grid_data is None:
-                # Log warning but don't fail if we never got grid data
-                _LOGGER.warning("Failed to get grid data and no cached data available")
-                grid_data = {}
-                self._log_diagnostic("data_update", {
-                    "type": "grid_data",
-                    "result": "failure_no_cache",
-                    "error": "Failed to get grid data"
-                })
-            else:
-                _LOGGER.warning("Using cached grid data due to API error")
-                grid_data = self._last_grid_data
-                self._log_diagnostic("data_update", {
-                    "type": "grid_data",
+                    "type": "battery_data",
                     "result": "fallback_to_cache"
                 })
             
@@ -424,11 +394,10 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             if self._notify_on_recovery:
                 await async_dismiss(self.hass, NOTIFICATION_ERROR)
             
-            # Return the best data we have along with connection status
+            # Return the data along with connection status
             return {
-                "soc": self._last_soc_data or {},
-                "grid": self._last_grid_data or {},
-                "connection_status": "connected" if soc_data and grid_data else "partial",
+                "battery": self._last_battery_data or {},
+                "connection_status": "connected" if battery_data else "partial",
                 "circuit_breaker": self.circuit_breaker.state.value,
                 "last_updated": datetime.now().isoformat()
             }
@@ -643,7 +612,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             
             # Step 2: Reset client state
             with self._timed_operation("reset_client"):
-                await self.hass.async_add_executor_job(self._reset_client)
+                await self._reset_client()
             
             # Step 3: Force immediate data refresh
             with self._timed_operation("refresh_data"):
@@ -757,27 +726,12 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         
         return result
     
-    def _reset_client(self) -> None:
+    async def _reset_client(self) -> None:
         """Reset client state to force reauthentication and session cleanup."""
         try:
-            # Reset auth tokens
-            if hasattr(self.client, 'auth') and hasattr(self.client.auth, 'access_token'):
-                self.client.auth.access_token = None
-            
-            # Reset session if available
-            if hasattr(self.client, 'session'):
-                try:
-                    self.client.session.close()
-                except:
-                    pass
-                self.client.session = None
-            
-            # Try to recreate session and get new token if needed
+            # Reinitialize client to get a new session and authentication
             if hasattr(self.client, 'initialize'):
-                self.client.initialize()
-            
-            # Force authentication attempt
-            self.client.ensure_authenticated()
+                await self.client.initialize()
             
             _LOGGER.info("ByteWatt client state has been reset")
             
@@ -827,7 +781,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         # Check authentication
         try:
             auth_start = time.time()
-            auth_result = await self.hass.async_add_executor_job(self.client.ensure_authenticated)
+            auth_result = await self.client.initialize()
             auth_duration = time.time() - auth_start
             
             health_result["authentication"] = {
@@ -843,36 +797,19 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         # Check API endpoints
         api_checks = {}
         
-        # Check SOC endpoint
+        # Check battery data endpoint
         try:
-            soc_start = time.time()
-            soc_data = await self.hass.async_add_executor_job(self.client.get_soc_data)
-            soc_duration = time.time() - soc_start
+            data_start = time.time()
+            battery_data = await self.client.get_battery_data()
+            data_duration = time.time() - data_start
             
-            api_checks["soc_endpoint"] = {
-                "success": soc_data is not None,
-                "duration": f"{soc_duration:.3f}s",
-                "data_available": bool(soc_data)
+            api_checks["battery_endpoint"] = {
+                "success": battery_data is not None,
+                "duration": f"{data_duration:.3f}s",
+                "data_available": bool(battery_data)
             }
         except Exception as err:
-            api_checks["soc_endpoint"] = {
-                "success": False,
-                "error": str(err)
-            }
-        
-        # Check grid endpoint
-        try:
-            grid_start = time.time()
-            grid_data = await self.hass.async_add_executor_job(self.client.get_grid_data)
-            grid_duration = time.time() - grid_start
-            
-            api_checks["grid_endpoint"] = {
-                "success": grid_data is not None,
-                "duration": f"{grid_duration:.3f}s",
-                "data_available": bool(grid_data)
-            }
-        except Exception as err:
-            api_checks["grid_endpoint"] = {
+            api_checks["battery_endpoint"] = {
                 "success": False,
                 "error": str(err)
             }
@@ -901,7 +838,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         # Add overall status
         if (health_result["network_checks"].get("ping_check", {}).get("success", False) and
             health_result["authentication"].get("success", False) and
-            api_checks.get("soc_endpoint", {}).get("success", False)):
+            api_checks.get("battery_endpoint", {}).get("success", False)):
             health_result["connection_status"] = "healthy"
         elif health_result["authentication"].get("success", False):
             health_result["connection_status"] = "limited"

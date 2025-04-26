@@ -1,9 +1,11 @@
-"""Validation logic for Byte-Watt data."""
-import math
+"""Validation logic for Byte-Watt data - DISABLED.
+
+All validation is now disabled and data is passed through as is.
+The new API is trusted to provide accurate data.
+"""
 import logging
 import time
-import statistics
-from typing import Dict, Any, Tuple, Optional, List, Deque, Set
+from typing import Dict, Any, Tuple, Optional, List
 from collections import deque
 
 _LOGGER = logging.getLogger(__name__)
@@ -11,79 +13,15 @@ _LOGGER = logging.getLogger(__name__)
 
 class BalancedAdvancedValidator:
     """
-    Balanced Advanced validator for ByteWatt Battery Data.
-    
-    This validator provides highly accurate detection of anomalies while maintaining
-    good data availability. It employs a multi-tier validation system with separate 
-    trusted and accepted data classifications, and handles recovery points appropriately.
+    Disabled validator that passes all data through without validation.
     """
     
     def __init__(self):
-        # Core parameters - balanced thresholds
-        self.max_soc_change_rate = 4.0  # % per minute (less restrictive)
-        self.extreme_soc_jump = 10.0    # % absolute (moderate threshold)
-        self.min_power_threshold = 200  # Watts - ignore balance for low values
-        self.max_battery_power = 8000   # Maximum inverter capacity
-        self.max_time_gap = 600         # Maximum time gap in seconds
+        """Initialize the validator (disabled)."""
+        _LOGGER.info("Validation is disabled - all data will be accepted")
         
-        # History tracking
-        self.window_size = 30           # Moderate window size
-        self.soc_history = deque(maxlen=self.window_size)
-        self.timestamps = deque(maxlen=self.window_size)
-        self.power_history = {
-            'battery': deque(maxlen=self.window_size),
-            'solar': deque(maxlen=self.window_size),
-            'grid': deque(maxlen=self.window_size),
-            'load': deque(maxlen=self.window_size)
-        }
-        
-        # Derived metrics
-        self.soc_delta_history = deque(maxlen=self.window_size)
-        self.soc_rate_history = deque(maxlen=self.window_size)
-        
-        # Multi-tier validation data storage
-        self.trusted_data_points = []   # Strictly validated data (high confidence)
-        self.accepted_data_points = []  # Accepted data (passes baseline validation)
-        self.context_data_points = []   # All data points for contextual awareness (even invalid ones)
-        self.recovery_points = []       # Track recovery points separately
-        
-        # Mode detection and tracking
-        self.current_mode = "unknown"
-        self.mode_history = deque(maxlen=8)
-        self.mode_transition_time = 0
-        
-        # Context tracking for spike pattern detection
-        self.all_soc_values = deque(maxlen=10)  # All SOC values seen, even invalid ones
-        self.all_soc_deltas = deque(maxlen=10)  # All SOC deltas, even from invalid entries
-        
-        # Statistical tracking
-        self.median_soc = None
-        self.mad_soc = 0.5
-        self.soc_ema = None
-        
-        # Validation state
-        self.last_known_good = None
-        self.last_known_good_timestamp = 0
-        self.validation_details = {}
-        self.consecutive_failures = 0
-        self.consecutive_successes = 0
-        
-        # Component weights - prioritize physics over statistics
-        self.weights = {
-            'physics_critical': 1.0,    # Critical physics violations
-            'physics_standard': 0.8,    # Standard physics constraints
-            'statistics': 0.6,          # Statistical outlier detection
-            'mode_consistency': 0.5,    # Mode consistency checks
-            'power_balance': 0.4,       # Power flow balance
-        }
-        
-        # Internal tracking for current entry
-        self._current_entry = None
-        
-        # Recovery point tracking
-        self.is_recovery_point = False
-        self.recovery_pattern = ""
-        self.suspected_spike = False
+        # Last update timestamp for logging
+        self.last_log_time = 0
     
     def extract_data(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """Extract relevant data from entry for validation."""
@@ -546,23 +484,28 @@ class BalancedAdvancedValidator:
                 # This is a spike and recover pattern
                 self.suspected_spike = True
     
-    def is_valid_response(self, entry: Dict[str, Any], timestamp: float) -> Tuple[bool, Optional[str]]:
+    def is_valid_response(self, entry: Dict[str, Any], timestamp: float = None) -> Tuple[bool, Optional[str]]:
         """
-        Validate an API response data.
+        Validate an API response data - Always returns valid.
         
         Args:
             entry: The data to validate
-            timestamp: Unix timestamp of the data
+            timestamp: Unix timestamp of the data (optional)
             
         Returns:
             (is_valid, reason_if_invalid)
         """
-        # Convert to interface compatible with validate_entry
-        return self.validate_entry(entry)
+        # Log occasionally that validation is disabled
+        current_time = time.time() if timestamp is None else timestamp
+        if current_time - self.last_log_time > 3600:  # Log once per hour at most
+            _LOGGER.debug("Data validation is disabled - all data is accepted")
+            self.last_log_time = current_time
+            
+        return True, None
     
     def validate_entry(self, entry: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         """
-        Validate a single entry using the balanced approach.
+        Validate a single entry - Always returns valid.
         
         Args:
             entry: The entry to validate
@@ -570,151 +513,18 @@ class BalancedAdvancedValidator:
         Returns:
             (is_valid, reason_if_invalid)
         """
-        # Store current entry for reference in validation functions
-        self._current_entry = entry
-        
-        # Reset recovery point tracking for this entry
-        self.is_recovery_point = False
-        self.recovery_pattern = ""
-        
-        # Extract relevant data
-        data = self.extract_data(entry)
-        if not data:
-            return False, "Invalid API response or missing data"
-        
-        # First entry is always valid (no prior reference)
-        if self.last_known_good is None:
-            self.last_known_good = entry
-            self.last_known_good_timestamp = data['timestamp']
-            self.update_history(data)
-            
-            # Add to all tracking lists
-            self.accepted_data_points.append({
-                'timestamp': data['timestamp'],
-                'data': data
-            })
-            self.trusted_data_points.append({
-                'timestamp': data['timestamp'],
-                'data': data
-            })
-            
-            # Update context tracking
-            self.update_context_tracking(data)
-            
-            return True, None
-        
-        # Always update context tracking before validation
-        # This gives us awareness of previous entries even if they were invalid
-        self.update_context_tracking(data)
-        
-        # Get previous valid data for comparison
-        prev_data = self.extract_data(self.last_known_good)
-        
-        # Run validation components
-        scores = {
-            'physics_critical': self.validate_physics_critical(data, prev_data),
-            'physics_standard': self.validate_physics_standard(data, prev_data),
-            'statistics': self.validate_statistics(data),
-            'mode_consistency': self.validate_mode_consistency(data),
-            'power_balance': self.validate_power_balance(data)
-        }
-        
-        # Store component scores for debugging
-        self.validation_details = {k: v[0] for k, v in scores.items()}
-        
-        # Calculate final score with multi-tier classification
-        score, is_valid, trust_score, reason = self.calculate_combined_score(scores)
-        
-        # Apply hysteresis for stability
-        is_valid = self.apply_hysteresis(is_valid, score)
-        
-        # Update state tracking
-        if is_valid:
-            self.consecutive_successes += 1
-            self.consecutive_failures = 0
-            
-            # Update tracking for valid entries
-            self.last_known_good = entry
-            self.last_known_good_timestamp = data['timestamp']
-            self.update_history(data)
-            
-            # Add to accepted data points
-            data_point = {
-                'timestamp': data['timestamp'],
-                'data': data
-            }
-            
-            # Store recovery point information internally but still mark as valid
-            if self.is_recovery_point:
-                # Add to recovery points list for tracking
-                recovery_data_point = data_point.copy()
-                recovery_data_point['recovery_pattern'] = self.recovery_pattern
-                self.recovery_points.append(recovery_data_point)
-                
-                # Log the recovery point (but don't reject it)
-                _LOGGER.info(f"Detected SOC recovery pattern: {self.recovery_pattern}")
-                
-            self.accepted_data_points.append(data_point)
-            
-            # If high trust score, add to trusted data points
-            # Recovery points aren't automatically trusted, even if they pass validation
-            if trust_score >= 0.7 and not self.is_recovery_point:  
-                self.trusted_data_points.append(data_point.copy())
-        else:
-            self.consecutive_failures += 1
-            self.consecutive_successes = 0
-            
-            # For data that almost makes the cut, still update some tracking
-            if score >= 0.3:  # Near-miss data
-                self.detect_system_mode(data)
-        
-        # Clear current entry reference to avoid memory leaks
-        self._current_entry = None
-        
-        return is_valid, reason if not is_valid else None
+        return True, None
 
 
 class NeuralPhysicsValidator:
     """
-    Neural Physics validator combining adaptive physics constraints with 
-    pattern recognition for robust battery data validation.
+    Disabled validator that passes all data through without validation.
     """
     
     def __init__(self):
-        # Physics constraints (universal)
-        self.max_soc_change_rate = 5.0  # % per minute (physical limit)
-        self.extreme_soc_jump = 15.0    # % absolute (hard physical limit)
-        self.min_power_threshold = 300  # Watts - ignore balance for low values
-        self.max_battery_power = 8000   # Maximum inverter capacity
-        self.max_time_gap = 600         # Maximum time gap in seconds
-        
-        # Pattern recognition components
-        self.soc_history = deque(maxlen=30)  # SOC values
-        self.timestamps = deque(maxlen=30)   # Corresponding timestamps
-        self.power_history = {
-            'battery': deque(maxlen=30),  # Battery power
-            'solar': deque(maxlen=30),    # Solar power
-            'grid': deque(maxlen=30),     # Grid power
-            'load': deque(maxlen=30)      # Load power
-        }
-        
-        # Pattern weighting
-        self.weights = {
-            'soc_physics': 1.0,         # SOC change rate (most reliable)
-            'energy_conservation': 0.7,  # Power balance
-            'bms_constraints': 0.9,      # BMS prevents charging at 100%, etc.
-            'power_limits': 0.6,         # Power within system limits
-            'pattern_consistency': 0.4   # Consistent patterns over time
-        }
-        
-        # Tracking
-        self.last_known_good = None  # Last valid entry
-        self.last_known_good_timestamp = 0
-        self.last_soc_direction = 0  # -1=decreasing, 0=stable, 1=increasing
-        self.confidence_scores = []  # Track validation confidence
-        
-        # Debug information
-        self.validation_details = {}
+        """Initialize the validator (disabled)."""
+        _LOGGER.info("Neural Physics validator is disabled - all data will be accepted")
+        self.last_log_time = 0
     
     def extract_data(self, data: Dict[str, Any], timestamp: float) -> Dict[str, Any]:
         """Extract relevant data from entry for validation."""
@@ -993,7 +803,7 @@ class NeuralPhysicsValidator:
     
     def validate(self, data: Dict[str, Any], timestamp: float) -> Tuple[bool, Optional[str]]:
         """
-        Validate data using the neural physics approach.
+        Validate data - Always returns valid.
         
         Args:
             data: The data to validate
@@ -1002,117 +812,22 @@ class NeuralPhysicsValidator:
         Returns:
             (is_valid, reason_if_invalid)
         """
-        # Extract relevant data
-        extracted_data = self.extract_data(data, timestamp)
-        if not extracted_data:
-            return False, "Invalid data or missing required fields"
-        
-        # First entry is always valid (no prior reference)
-        prev_data = None
-        if self.last_known_good_timestamp > 0:
-            prev_data = self.extract_data(self.last_known_good, self.last_known_good_timestamp)
-        else:
-            self.last_known_good = data
-            self.last_known_good_timestamp = timestamp
-            self.update_history(extracted_data)
-            return True, None
-        
-        # Run all validation components
-        validation_scores = {
-            'soc_physics': self.validate_physics_soc(extracted_data, prev_data),
-            'energy_conservation': self.validate_energy_conservation(extracted_data),
-            'bms_constraints': self.validate_bms_constraints(extracted_data),
-            'power_limits': self.validate_power_limits(extracted_data),
-            'pattern_consistency': self.validate_pattern_consistency(extracted_data)
-        }
-        
-        # Store validation details for debugging
-        self.validation_details = {k: v[0] for k, v in validation_scores.items()}
-        
-        # Calculate final score
-        final_score, reason = self.calculate_combined_score(validation_scores)
-        
-        # Apply neural-inspired confidence tracking
-        self.confidence_scores.append(final_score)
-        if len(self.confidence_scores) > 10:
-            self.confidence_scores.pop(0)
-        
-        # Adaptive threshold with hysteresis
-        # Higher threshold for first transition to valid after invalid
-        validation_threshold = 0.5
-        
-        # If recent history was mostly invalid, require higher confidence to switch to valid
-        if len(self.confidence_scores) >= 3 and sum(1 for s in self.confidence_scores if s < 0.5) >= 2:
-            validation_threshold = 0.65
-        
-        # Final decision
-        is_valid = final_score >= validation_threshold
-        
-        # Update tracking for valid entries
-        if is_valid:
-            self.last_known_good = data
-            self.last_known_good_timestamp = timestamp
-            self.update_history(extracted_data)
-        
-        return is_valid, reason if not is_valid else None
+        # Log occasionally that validation is disabled
+        current_time = timestamp
+        if current_time - self.last_log_time > 3600:  # Log once per hour at most
+            _LOGGER.debug("Neural Physics validation is disabled - all data is accepted")
+            self.last_log_time = current_time
+            
+        return True, None
 
 
 class EnergyDataValidator:
-    """Enhanced class for validating energy data from the Byte-Watt API."""
+    """Disabled validator that passes all data through without validation."""
     
-    def __init__(self, 
-                 max_soc_change_rate: float = 3.0,  # % per minute - decreased to catch more spikes
-                 power_balance_tolerance: float = 1.0,  # Increased tolerance for power imbalance
-                 anomaly_std_dev_threshold: float = 3.0,  # Flag if > 3.0 standard deviations from mean
-                 window_size: int = 10,  # Increased window size for better statistical analysis
-                 max_power_rating: float = 8000,  # Maximum inverter power (W)
-                 battery_capacity: float = 10000,  # Battery capacity (Wh)
-                 power_contingency: float = 1.5,  # Contingency factor for power limits
-                 min_power_threshold: float = 500,  # Minimum power threshold for balance checks
-                 max_time_gap: float = 600,  # Maximum time gap in seconds to consider for validation
-                 ema_alpha: float = 0.2,  # Reduced alpha for more stable EMA
-                 max_allowed_soc_jump: float = 15.0,  # Maximum allowed SOC jump in any case
-                 soc_history_size: int = 20,  # Size of SOC history deque for median filtering
-                 use_neural_validator: bool = True):  # Whether to use the neural validator
-        
-        # Core parameters
-        self.max_soc_change_rate = max_soc_change_rate
-        self.power_balance_tolerance = power_balance_tolerance
-        self.anomaly_std_dev_threshold = anomaly_std_dev_threshold
-        self.window_size = window_size
-        self.max_power_rating = max_power_rating
-        self.battery_capacity = battery_capacity
-        self.power_contingency = power_contingency
-        self.min_power_threshold = min_power_threshold
-        self.max_time_gap = max_time_gap
-        self.ema_alpha = ema_alpha
-        
-        # State tracking
-        self.valid_data_points = []
-        self.soc_ema = None  # Exponential moving average for SOC
-        self.last_validation_result = True  # For hysteresis
-        self.last_checked_timestamp = 0
-        self.consecutive_failures = 0
-        self.consecutive_successes = 0
-        self.max_allowed_soc_jump = max_allowed_soc_jump
-        self.soc_history_size = soc_history_size
-        
-        # More robust SOC tracking
-        self.soc_history = deque(maxlen=soc_history_size)
-        self.soc_median = None
-        self.last_valid_soc = None
-        self.last_valid_soc_timestamp = 0
-        self.soc_trend = 0  # Direction: 1=up, -1=down, 0=stable
-        self.suspected_spike = False
-        
-        # Power state tracking
-        self.is_charging = False
-        self.is_discharging = False
-        self.battery_power_history = deque(maxlen=soc_history_size)
-        
-        # Neural validator integration
-        self.use_neural_validator = use_neural_validator
-        self.neural_validator = NeuralPhysicsValidator() if use_neural_validator else None
+    def __init__(self, **kwargs):
+        """Initialize the validator (disabled)."""
+        _LOGGER.info("Energy data validation is disabled - all data will be accepted")
+        self.last_log_time = 0
         
     def get_median(self, values: List[float]) -> float:
         """Calculate median value from a list of numbers."""
@@ -1280,7 +995,7 @@ class EnergyDataValidator:
     
     def is_valid_response(self, data: Dict[str, Any], timestamp: float) -> Tuple[bool, Optional[str]]:
         """
-        Enhanced validation of API response data with robust neural physics validation.
+        Validation of API response data - Always returns valid.
         
         Args:
             data: The API response data
@@ -1289,153 +1004,10 @@ class EnergyDataValidator:
         Returns:
             (is_valid, reason_if_invalid)
         """
-        if not data:
-            return False, "No data in response"
-        
-        # If neural validator is enabled, use it as the primary validation method
-        if self.use_neural_validator and self.neural_validator:
-            neural_valid, neural_reason = self.neural_validator.validate(data, timestamp)
+        # Log occasionally that validation is disabled
+        current_time = timestamp if timestamp else time.time()
+        if current_time - self.last_log_time > 3600:  # Log once per hour at most
+            _LOGGER.debug("Energy data validation is disabled - all data is accepted")
+            self.last_log_time = current_time
             
-            # Apply hysteresis to neural validation results
-            final_valid, final_reason = self.validate_with_hysteresis(neural_valid, neural_reason)
-            
-            # If neural validator rejects data, log the reason
-            if not final_valid and final_reason:
-                _LOGGER.warning(f"Neural validator rejected data: {final_reason}")
-            
-            # For valid data, still update our traditional tracking variables for backup
-            if neural_valid:
-                # Update our own state tracking for legacy compatibility
-                current_soc = data.get('soc', 0)
-                self.update_soc_tracking(current_soc, timestamp)
-                self.determine_power_state(data)
-                
-                # Store the data point for window-based validations
-                self.valid_data_points.append({
-                    'timestamp': timestamp,
-                    'data': data
-                })
-                
-                # Keep window size limited
-                if len(self.valid_data_points) > self.window_size * 3:
-                    self.valid_data_points.pop(0)
-                
-                # Update tracking variables
-                self.last_valid_soc = current_soc
-                self.last_valid_soc_timestamp = timestamp
-                self.last_checked_timestamp = timestamp
-                self.suspected_spike = False
-            
-            return final_valid, final_reason
-        
-        # If neural validator is disabled, fall back to traditional validation
-        
-        # Extract key power values
-        current_soc = data.get('soc', 0)
-        load_power = data.get('preal_l1', 0)
-        solar_power = (
-            data.get('ppv1', 0) + 
-            data.get('ppv2', 0) + 
-            data.get('ppv3', 0) + 
-            data.get('ppv4', 0)
-        )
-        battery_power = data.get('pbat', 0)
-        grid_power = (
-            data.get('pmeter_l1', 0) + 
-            data.get('pmeter_l2', 0) + 
-            data.get('pmeter_l3', 0) + 
-            data.get('pmeter_dc', 0)
-        )
-        
-        # Update power state for context-aware validation
-        self.determine_power_state(data)
-        
-        # Step 1: Check for SOC spikes first - most important validation
-        if self.last_valid_soc is not None:
-            is_spike, spike_reason = self.is_soc_spike(current_soc, timestamp)
-            if is_spike:
-                _LOGGER.warning(f"SOC spike detected: {current_soc}% vs last valid {self.last_valid_soc}%. Reason: {spike_reason}")
-                self.suspected_spike = True
-                return self.validate_with_hysteresis(False, spike_reason)
-        
-        # Step 2: Update SOC tracking (EMA, median, etc.)
-        self.update_soc_tracking(current_soc, timestamp)
-        
-        # Update SOC EMA (used for smoothing)
-        if self.soc_ema is None:
-            self.soc_ema = current_soc
-        else:
-            self.soc_ema = self.update_exponential_moving_average(current_soc, self.soc_ema)
-        
-        # Step 3: Statistical validation against historical data
-        if len(self.soc_history) >= 5:
-            # Calculate z-score relative to median (more robust than mean)
-            soc_median = self.get_median(list(self.soc_history))
-            abs_deviations = [abs(x - soc_median) for x in self.soc_history]
-            mad = self.get_median(abs_deviations)
-            
-            # Use MAD for robust outlier detection, with minimum threshold
-            effective_std = max(mad * 1.4826, 1.0)  # 1.4826 converts MAD to std-dev equivalent
-            
-            # Calculate z-score
-            z_score = abs(current_soc - soc_median) / effective_std
-            
-            # If z-score is extremely high, reject the value
-            if z_score > self.anomaly_std_dev_threshold:
-                _LOGGER.warning(f"Statistical anomaly: SOC {current_soc:.1f}% vs median {soc_median:.1f}% (z-score: {z_score:.2f})")
-                return self.validate_with_hysteresis(
-                    False,
-                    f"Statistical anomaly: z-score {z_score:.2f} > threshold {self.anomaly_std_dev_threshold}"
-                )
-        
-        # Step 4: Power balance check (could indicate faulty readings)
-        power_sum = solar_power + grid_power + battery_power
-        power_balance = abs(power_sum - load_power)
-        max_power = max(abs(solar_power), abs(grid_power), abs(battery_power), abs(load_power))
-        
-        # Skip balance checks for small power values
-        if max_power > self.min_power_threshold:
-            # Calculate adaptive tolerance based on power magnitude
-            adaptive_tolerance = self.power_balance_tolerance
-            if max_power > 3000:
-                # For high power levels, be more lenient
-                adaptive_tolerance *= 1.2
-            
-            # Reject only extreme imbalances now that we have better SOC validation
-            if power_balance > 2 * adaptive_tolerance * max_power:
-                return self.validate_with_hysteresis(
-                    False, 
-                    f"Severe power imbalance: {power_balance:.1f}W (ratio: {power_balance/max_power:.2f})"
-                )
-        
-        # Step 5: Battery power limit check
-        adjusted_max_power = self.max_power_rating * self.power_contingency
-        
-        # If we're in a known operating state, be more lenient
-        if self.is_charging or self.is_discharging:
-            adjusted_max_power *= 1.2
-            
-        if abs(battery_power) > adjusted_max_power:
-            return self.validate_with_hysteresis(
-                False, 
-                f"Battery power ({abs(battery_power):.1f}W) exceeds limit ({adjusted_max_power:.1f}W)"
-            )
-        
-        # All checks passed - store as valid data point
-        self.valid_data_points.append({
-            'timestamp': timestamp,
-            'data': data
-        })
-        
-        # Keep window size limited
-        if len(self.valid_data_points) > self.window_size * 3:
-            self.valid_data_points.pop(0)
-        
-        # Update tracking variables for next validation
-        self.last_valid_soc = current_soc
-        self.last_valid_soc_timestamp = timestamp
-        self.last_checked_timestamp = timestamp
-        self.suspected_spike = False
-        
-        # Return valid result with hysteresis
-        return self.validate_with_hysteresis(True, None)
+        return True, None
