@@ -195,6 +195,7 @@ class NeovoltClient:
             if not await self.async_login():
                 return None
         
+        # First get the real-time power data
         url = f"{self.base_url}/api/report/energyStorage/getLastPowerData"
         
         params = {
@@ -214,6 +215,9 @@ class NeovoltClient:
         })
         
         try:
+            battery_data = {}
+            
+            # Get real-time power data
             async with asyncio.timeout(DEFAULT_TIMEOUT):
                 response = await self.session.get(
                     url=url,
@@ -223,7 +227,7 @@ class NeovoltClient:
                 
                 if response.status != 200:
                     _LOGGER.error(
-                        "Failed to get battery data with status %s: %s", 
+                        "Failed to get battery power data with status %s: %s", 
                         response.status, 
                         await response.text()
                     )
@@ -239,16 +243,82 @@ class NeovoltClient:
                 
                 if result.get("code") != 0 and result.get("code") != 200:
                     _LOGGER.error(
-                        "Failed to get battery data with code %s: %s", 
+                        "Failed to get battery power data with code %s: %s", 
                         result.get("code"), 
                         result.get("msg")
                     )
                     return None
                 
-                battery_data = result.get("data")
-                _LOGGER.debug("Received battery data: %s", battery_data)
-                _LOGGER.debug("Available battery data attributes: %s", list(battery_data.keys()) if battery_data else None)
-                return battery_data
+                # Store power data
+                power_data = result.get("data", {})
+                _LOGGER.debug("Received battery power data: %s", power_data)
+                _LOGGER.debug("Available power data attributes: %s", list(power_data.keys()) if power_data else None)
+                
+                # Merge power data into our result
+                battery_data.update(power_data)
+            
+            # Now get the energy statistics
+            stats_url = f"{self.base_url}/api/report/energy/getEnergyStatistics"
+            from datetime import datetime, timedelta
+            
+            # Get date range from 2020-01-01 to today
+            end_date = datetime.now().strftime("%Y-%m-%d")
+            begin_date = "2020-01-01"
+            
+            stats_params = {
+                "sysSn": "All", 
+                "stationId": station_id or "",
+                "beginDate": begin_date,
+                "endDate": end_date
+            }
+            
+            async with asyncio.timeout(DEFAULT_TIMEOUT):
+                stats_response = await self.session.get(
+                    url=stats_url,
+                    params=stats_params,
+                    headers=headers
+                )
+                
+                if stats_response.status == 200:
+                    stats_result = await stats_response.json()
+                    
+                    if stats_result.get("code") == 200 or stats_result.get("code") == 0:
+                        stats_data = stats_result.get("data", {})
+                        _LOGGER.debug("Received energy statistics data: %s", stats_data)
+                        _LOGGER.debug("Available statistics attributes: %s", list(stats_data.keys()) if stats_data else None)
+                        
+                        # Map the statistics data to the grid sensor names
+                        if stats_data:
+                            # Total solar generation
+                            battery_data["Total_Solar_Generation"] = stats_data.get("epvT")
+                            # Total feed in (grid export)
+                            battery_data["Total_Feed_In"] = stats_data.get("eout")
+                            # Total battery charge
+                            battery_data["Total_Battery_Charge"] = stats_data.get("echarge")
+                            # PV to house
+                            battery_data["PV_Power_House"] = stats_data.get("epv2load")
+                            # PV charging battery
+                            battery_data["PV_Charging_Battery"] = stats_data.get("epvcharge")
+                            # Total house consumption
+                            battery_data["Total_House_Consumption"] = stats_data.get("eload")
+                            # Grid charging battery
+                            battery_data["Grid_Based_Battery_Charge"] = stats_data.get("egridCharge")
+                            # Grid power consumption
+                            battery_data["Grid_Power_Consumption"] = stats_data.get("einput")
+                    else:
+                        _LOGGER.warning(
+                            "Failed to get energy statistics with code %s: %s", 
+                            stats_result.get("code"), 
+                            stats_result.get("msg")
+                        )
+                else:
+                    _LOGGER.warning(
+                        "Failed to get energy statistics with status %s", 
+                        stats_response.status
+                    )
+            
+            _LOGGER.debug("Combined battery data: %s", battery_data)
+            return battery_data
                 
         except (asyncio.TimeoutError, aiohttp.ClientError) as error:
             _LOGGER.error("Error fetching battery data: %s", error)

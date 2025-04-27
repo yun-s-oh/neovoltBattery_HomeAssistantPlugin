@@ -92,11 +92,22 @@ automation:
 - **Network Errors**: The integration has retry logic built-in to handle temporary network issues with the Byte-Watt API
 - **Time Format Issues**: The integration automatically handles various time formats and normalizes them to HH:MM
 - **Battery Data Sensors**: The integration maps API fields as follows:
-  - `pgrid` → Grid Consumption (W)
-  - `pload` → House Consumption (W)
-  - `pbat` → Battery Power (W)
-  - `ppv` → PV Power (W)
-  - `soc` → Battery Percentage (%)
+  - **Real-time metrics**:
+    - `pgrid` → Grid Consumption (W)
+    - `pload` → House Consumption (W)
+    - `pbat` → Battery Power (W)
+    - `ppv` → PV Power (W)
+    - `soc` → Battery Percentage (%)
+  
+  - **Energy statistics metrics**:
+    - `epvT` → Total Solar Generation (kWh)
+    - `eout` → Total Feed In (kWh)
+    - `echarge` → Total Battery Charge (kWh)
+    - `epv2load` → PV Power to House (kWh)
+    - `epvcharge` → PV Charging Battery (kWh)
+    - `eload` → Total House Consumption (kWh)
+    - `egridCharge` → Grid Based Battery Charge (kWh)
+    - `einput` → Grid Power Consumption (kWh)
   
   If you're experiencing issues with certain sensors not showing data, you can enable debug logging to see the available data fields from the API.
 
