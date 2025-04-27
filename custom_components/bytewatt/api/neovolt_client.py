@@ -3,7 +3,7 @@ import logging
 import asyncio
 import aiohttp
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -259,7 +259,6 @@ class NeovoltClient:
             
             # Now get the energy statistics
             stats_url = f"{self.base_url}/api/report/energy/getEnergyStatistics"
-            from datetime import datetime, timedelta
             
             # Get date range from 2020-01-01 to today
             end_date = datetime.now().strftime("%Y-%m-%d")
@@ -273,11 +272,18 @@ class NeovoltClient:
             }
             
             async with asyncio.timeout(DEFAULT_TIMEOUT):
-                stats_response = await self.session.get(
-                    url=stats_url,
-                    params=stats_params,
-                    headers=headers
-                )
+                # Add try/except for stats request to avoid breaking the whole function if stats fails
+                try:
+                    stats_response = await self.session.get(
+                        url=stats_url,
+                        params=stats_params,
+                        headers=headers
+                    )
+                except (asyncio.TimeoutError, aiohttp.ClientError) as stats_error:
+                    _LOGGER.warning("Error fetching energy statistics: %s", stats_error)
+                    # Return the power data we already have instead of failing completely
+                    _LOGGER.debug("Returning only power data due to statistics fetch error")
+                    return battery_data
                 
                 if stats_response.status == 200:
                     stats_result = await stats_response.json()
