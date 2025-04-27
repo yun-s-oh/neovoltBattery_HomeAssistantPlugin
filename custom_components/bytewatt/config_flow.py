@@ -30,8 +30,8 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Validate the credentials
-            client = ByteWattClient(user_input[CONF_USERNAME], user_input[CONF_PASSWORD])
-            success = await self.hass.async_add_executor_job(client.get_token)
+            client = ByteWattClient(self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD])
+            success = await client.initialize()
 
             if success:
                 return self.async_create_entry(
