@@ -245,8 +245,10 @@ class NeovoltClient:
                     )
                     return None
                 
-                _LOGGER.debug("Received battery data: %s", result.get("data"))
-                return result.get("data")
+                battery_data = result.get("data")
+                _LOGGER.debug("Received battery data: %s", battery_data)
+                _LOGGER.debug("Available battery data attributes: %s", list(battery_data.keys()) if battery_data else None)
+                return battery_data
                 
         except (asyncio.TimeoutError, aiohttp.ClientError) as error:
             _LOGGER.error("Error fetching battery data: %s", error)

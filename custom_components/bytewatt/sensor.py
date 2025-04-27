@@ -64,7 +64,7 @@ async def async_setup_entry(
             SENSOR_GRID_CONSUMPTION, 
             "Grid Consumption", 
             "power", 
-            "gridConsumption", 
+            "pgrid", 
             "W", 
             "mdi:transmission-tower"
         ),
@@ -74,7 +74,7 @@ async def async_setup_entry(
             SENSOR_HOUSE_CONSUMPTION, 
             "House Consumption", 
             "power", 
-            "houseConsumption", 
+            "pload", 
             "W", 
             "mdi:home-lightning-bolt"
         ),
@@ -84,7 +84,7 @@ async def async_setup_entry(
             SENSOR_BATTERY_POWER, 
             "Battery Power", 
             "power", 
-            "battery", 
+            "pbat", 
             "W", 
             "mdi:battery-charging"
         ),
@@ -94,7 +94,7 @@ async def async_setup_entry(
             SENSOR_PV, 
             "PV Power", 
             "power", 
-            "pv", 
+            "ppv", 
             "W", 
             "mdi:solar-power"
         ),
@@ -297,9 +297,26 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
                 return None
             
             battery_data = self.coordinator.data["battery"]
-            return battery_data.get(self._attribute)
+            value = battery_data.get(self._attribute)
+            
+            if value is None:
+                # First time encountering a missing attribute, log it at info level 
+                # to help with troubleshooting new API responses
+                _LOGGER.debug(
+                    f"Attribute '{self._attribute}' not found in battery data for {self._attr_name}. "
+                    f"Available attributes: {list(battery_data.keys())}"
+                )
+                return None
+                
+            # Return the value, converting string values to float if needed for numerical sensors
+            if self._attr_device_class == "power" and isinstance(value, (str, int, float)):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return value
+            return value
         except Exception as ex:
-            _LOGGER.error(f"Error getting sensor state: {ex}")
+            _LOGGER.error(f"Error getting sensor state for {self._attr_name}: {ex}")
             return None
 
 

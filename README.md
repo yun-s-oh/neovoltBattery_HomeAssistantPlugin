@@ -91,6 +91,14 @@ automation:
 
 - **Network Errors**: The integration has retry logic built-in to handle temporary network issues with the Byte-Watt API
 - **Time Format Issues**: The integration automatically handles various time formats and normalizes them to HH:MM
+- **Battery Data Sensors**: The integration maps API fields as follows:
+  - `pgrid` → Grid Consumption (W)
+  - `pload` → House Consumption (W)
+  - `pbat` → Battery Power (W)
+  - `ppv` → PV Power (W)
+  - `soc` → Battery Percentage (%)
+  
+  If you're experiencing issues with certain sensors not showing data, you can enable debug logging to see the available data fields from the API.
 
 ## Support
 
