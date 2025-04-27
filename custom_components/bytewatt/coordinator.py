@@ -336,7 +336,10 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     
     async def _async_update_data(self):
         """Update data via library with improved error handling."""
+        _LOGGER.debug("Starting _async_update_data method")
         try:
+            # Store datetime.now() in a variable for reuse
+            current_time = datetime.now()
             # Check if circuit breaker allows execution
             if not self.circuit_breaker.can_execute():
                 _LOGGER.warning(
@@ -366,7 +369,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # If we got battery data, update our cached version and last successful time
             if battery_data:
                 self._last_battery_data = battery_data
-                self._last_successful_update = datetime.now()
+                self._last_successful_update = current_time
                 self._consecutive_stale_checks = 0
                 self._recovery_attempts = 0  # Reset recovery attempts on successful update
                 
@@ -402,7 +405,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 "battery": self._last_battery_data or {},
                 "connection_status": "connected" if battery_data else "partial",
                 "circuit_breaker": self.circuit_breaker.state.value,
-                "last_updated": datetime.now().isoformat()
+                "last_updated": current_time.isoformat()
             }
             
             _LOGGER.debug(f"Coordinator data refreshed with keys: {list(data.keys())}")
@@ -422,7 +425,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 # Update cache freshness status
                 cache_age = "unknown"
                 if self._last_successful_update:
-                    age_seconds = (datetime.now() - self._last_successful_update).total_seconds()
+                    age_seconds = (current_time - self._last_successful_update).total_seconds()
                     if age_seconds < 300:  # 5 minutes
                         cache_age = "fresh"
                     elif age_seconds < 3600:  # 1 hour
@@ -446,8 +449,11 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                             title="ByteWatt Connection Error",
                             notification_id=NOTIFICATION_ERROR
                         )
-                    except (AttributeError, TypeError):
-                        _LOGGER.error(f"Could not create error notification: {err}")
+                    except (AttributeError, TypeError) as notification_error:
+                        # Log complete traceback for debugging
+                        import traceback
+                        _LOGGER.error(f"Could not create error notification: {notification_error}")
+                        _LOGGER.error(f"Traceback: {traceback.format_exc()}")
                     
                 raise UpdateFailed(f"Error communicating with API: {err}")
     
@@ -501,10 +507,11 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     @callback
     async def _handle_auto_reconnect(self, _now: Optional[datetime] = None) -> None:
         """Handle scheduled automatic reconnection."""
-        _LOGGER.info(f"Executing scheduled auto reconnect at {datetime.now().strftime('%H:%M:%S')}")
+        current_time = datetime.now()
+        _LOGGER.info(f"Executing scheduled auto reconnect at {current_time.strftime('%H:%M:%S')}")
         self._log_diagnostic("auto_reconnect", {
             "trigger": "scheduled",
-            "time": datetime.now().isoformat()
+            "time": current_time.isoformat()
         })
         
         await self._perform_recovery(is_scheduled=True)
@@ -538,11 +545,11 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         if self._recovery_in_progress:
             return
         
-        now = datetime.now()
+        current_time = datetime.now()
         
         # Log heartbeat check in diagnostics
         self._log_diagnostic("heartbeat_check", {
-            "timestamp": now.isoformat(),
+            "timestamp": current_time.isoformat(),
             "last_update": self._last_successful_update.isoformat() if self._last_successful_update else "never"
         })
         
@@ -555,7 +562,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             return
         
         # Calculate age of data
-        data_age = now - self._last_successful_update
+        data_age = current_time - self._last_successful_update
         data_age_seconds = data_age.total_seconds()
         
         # Check if data is stale
@@ -595,10 +602,11 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.warning(f"Performing ByteWatt integration {recovery_type} recovery (attempt {self._recovery_attempts})")
         
         # Record recovery attempt in diagnostics
+        recovery_timestamp = datetime.now()
         self._log_diagnostic("recovery_attempt", {
             "attempt": self._recovery_attempts,
             "type": recovery_type,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": recovery_timestamp.isoformat()
         })
         
         # Create notification about recovery attempt if enabled
@@ -631,9 +639,10 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.info("ByteWatt integration recovery completed successfully")
             
             # Record success in diagnostics
+            success_timestamp = datetime.now()
             self._log_diagnostic("recovery_result", {
                 "success": True,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": success_timestamp.isoformat()
             })
             
             # Update notification if enabled
@@ -651,11 +660,12 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"ByteWatt recovery failed: {err}")
             
             # Record failure in diagnostics
+            failure_timestamp = datetime.now()
             self._log_diagnostic("recovery_result", {
                 "success": False,
                 "error": str(err),
                 "error_type": type(err).__name__,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": failure_timestamp.isoformat()
             })
             
             # Apply exponential backoff for retry frequency based on attempt count
@@ -688,10 +698,11 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     
     def _check_network(self) -> Dict[str, Any]:
         """Check network connectivity to ByteWatt API."""
+        network_check_time = datetime.now()
         result = {
             "dns_check": {},
             "ping_check": {},
-            "timestamp": datetime.now().isoformat()
+            "timestamp": network_check_time.isoformat()
         }
         
         # Extract domain from base_url
@@ -768,8 +779,9 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     
     async def run_health_check(self) -> Dict[str, Any]:
         """Run a comprehensive health check on the ByteWatt integration."""
+        health_timestamp = datetime.now()
         health_result = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": health_timestamp.isoformat(),
             "integration_id": self.entry_id,
             "connection_status": "unknown",
             "network_checks": {},
@@ -780,7 +792,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         }
         
         # Record in diagnostics
-        self._log_diagnostic("health_check", {"timestamp": datetime.now().isoformat()})
+        self._log_diagnostic("health_check", {"timestamp": health_timestamp.isoformat()})
         
         # Check network connectivity
         try:
@@ -874,9 +886,10 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         else:
             self._disable_diagnostics()
         
+        toggle_timestamp = datetime.now()
         return {
             "diagnostics_mode": self._diagnostics_enabled,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": toggle_timestamp.isoformat()
         }
     
     def get_diagnostic_logs(self) -> List[Dict[str, Any]]:
