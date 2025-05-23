@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from .neovolt_auth import encrypt_password
 
@@ -203,7 +204,8 @@ class NeovoltClient:
             "stationId": station_id or ""
         }
         
-        current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Use timezone-aware datetime to avoid midnight issues
+        current_date = dt_util.now().strftime("%Y-%m-%d %H:%M:%S")
         
         headers = self._get_auth_headers()
         headers.update({
@@ -261,8 +263,14 @@ class NeovoltClient:
             stats_url = f"{self.base_url}/api/report/energy/getEnergyStatistics"
             
             # Get date range from 2020-01-01 to today
-            end_date = datetime.now().strftime("%Y-%m-%d")
+            # Use timezone-aware datetime to ensure we get the correct date at midnight
+            # This prevents the bug where at midnight we might get yesterday's date
+            now = dt_util.now()
+            end_date = now.strftime("%Y-%m-%d")
             begin_date = "2020-01-01"
+            
+            _LOGGER.debug("Fetching statistics for date range: %s to %s (current time: %s)", 
+                         begin_date, end_date, now.strftime("%Y-%m-%d %H:%M:%S %Z"))
             
             stats_params = {
                 "sysSn": "All", 
