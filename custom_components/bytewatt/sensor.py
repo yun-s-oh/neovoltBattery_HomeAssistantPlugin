@@ -34,6 +34,16 @@ from .const import (
     SENSOR_CHARGE_START,
     SENSOR_CHARGE_END,
     SENSOR_MIN_SOC,
+    SENSOR_PV_GENERATED_TODAY,
+    SENSOR_CONSUMED_TODAY,
+    SENSOR_FEED_IN_TODAY,
+    SENSOR_GRID_IMPORT_TODAY,
+    SENSOR_BATTERY_CHARGED_TODAY,
+    SENSOR_BATTERY_DISCHARGED_TODAY,
+    SENSOR_SELF_CONSUMPTION,
+    SENSOR_SELF_SUFFICIENCY,
+    SENSOR_TREES_PLANTED,
+    SENSOR_CO2_REDUCTION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -249,7 +259,111 @@ async def async_setup_entry(
         ),
     ]
     
-    async_add_entities(soc_sensors + grid_sensors + battery_settings_sensors)
+    # Define daily stats sensors
+    daily_stats_sensors = [
+        ByteWattGridSensor(
+            coordinator, 
+            entry, 
+            SENSOR_PV_GENERATED_TODAY, 
+            "PV Generated Today", 
+            "energy",
+            "PV_Generated_Today", 
+            "kWh", 
+            "mdi:solar-power"
+        ),
+        ByteWattGridSensor(
+            coordinator, 
+            entry, 
+            SENSOR_CONSUMED_TODAY, 
+            "Consumed Today", 
+            "energy",
+            "Consumed_Today", 
+            "kWh", 
+            "mdi:home-lightning-bolt"
+        ),
+        ByteWattGridSensor(
+            coordinator, 
+            entry, 
+            SENSOR_FEED_IN_TODAY, 
+            "Feed In Today", 
+            "energy",
+            "Feed_In_Today", 
+            "kWh", 
+            "mdi:transmission-tower-export"
+        ),
+        ByteWattGridSensor(
+            coordinator, 
+            entry, 
+            SENSOR_GRID_IMPORT_TODAY, 
+            "Grid Import Today", 
+            "energy",
+            "Grid_Import_Today", 
+            "kWh", 
+            "mdi:transmission-tower-import"
+        ),
+        ByteWattGridSensor(
+            coordinator, 
+            entry, 
+            SENSOR_BATTERY_CHARGED_TODAY, 
+            "Battery Charged Today", 
+            "energy",
+            "Battery_Charged_Today", 
+            "kWh", 
+            "mdi:battery-plus"
+        ),
+        ByteWattGridSensor(
+            coordinator, 
+            entry, 
+            SENSOR_BATTERY_DISCHARGED_TODAY, 
+            "Battery Discharged Today", 
+            "energy",
+            "Battery_Discharged_Today", 
+            "kWh", 
+            "mdi:battery-minus"
+        ),
+        ByteWattSensor(
+            coordinator, 
+            entry, 
+            SENSOR_SELF_CONSUMPTION, 
+            "Self Consumption", 
+            None,  # No device class for percentage
+            "Self_Consumption", 
+            "%", 
+            "mdi:home-battery"
+        ),
+        ByteWattSensor(
+            coordinator, 
+            entry, 
+            SENSOR_SELF_SUFFICIENCY, 
+            "Self Sufficiency", 
+            None,  # No device class for percentage
+            "Self_Sufficiency", 
+            "%", 
+            "mdi:home-battery-outline"
+        ),
+        ByteWattSensor(
+            coordinator, 
+            entry, 
+            SENSOR_TREES_PLANTED, 
+            "Trees Planted", 
+            None,
+            "Trees_Planted", 
+            "trees", 
+            "mdi:tree"
+        ),
+        ByteWattSensor(
+            coordinator, 
+            entry, 
+            SENSOR_CO2_REDUCTION, 
+            "CO2 Reduction", 
+            None,
+            "CO2_Reduction_Tons", 
+            "tons", 
+            "mdi:molecule-co2"
+        ),
+    ]
+    
+    async_add_entities(soc_sensors + grid_sensors + battery_settings_sensors + daily_stats_sensors)
 
 
 class ByteWattSensor(CoordinatorEntity, SensorEntity):

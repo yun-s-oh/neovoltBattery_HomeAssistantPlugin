@@ -331,6 +331,78 @@ class NeovoltClient:
                         stats_response.status
                     )
             
+            # Now get today's stats
+            today_url = f"{self.base_url}/api/stable/home/getSumDataForCustomer"
+            today_date = now.strftime("%Y-%m-%d")
+            
+            today_params = {
+                "sn": "All",
+                "stationId": station_id or "",
+                "tday": today_date
+            }
+            
+            _LOGGER.debug("Fetching today's stats for date: %s", today_date)
+            
+            async with asyncio.timeout(DEFAULT_TIMEOUT):
+                try:
+                    today_response = await self.session.get(
+                        url=today_url,
+                        params=today_params,
+                        headers=headers
+                    )
+                except (asyncio.TimeoutError, aiohttp.ClientError) as today_error:
+                    _LOGGER.warning("Error fetching today's stats: %s", today_error)
+                    # Return what we have so far
+                    return battery_data
+                
+                if today_response.status == 200:
+                    today_result = await today_response.json()
+                    
+                    if today_result.get("code") == 200:
+                        today_data = today_result.get("data", {})
+                        _LOGGER.debug("Received today's stats data: %s", today_data)
+                        
+                        # Map today's stats to battery data
+                        if today_data:
+                            # Energy stats for today
+                            battery_data["PV_Generated_Today"] = today_data.get("epvtoday")
+                            battery_data["Total_PV_Generation"] = today_data.get("epvtotal")
+                            battery_data["Consumed_Today"] = today_data.get("eload")
+                            battery_data["Feed_In_Today"] = today_data.get("eoutput")
+                            battery_data["Grid_Import_Today"] = today_data.get("einput")
+                            battery_data["Battery_Charged_Today"] = today_data.get("echarge")
+                            battery_data["Battery_Discharged_Today"] = today_data.get("edischarge")
+                            
+                            # Percentages (multiply by 100 to get percentage)
+                            self_consumption = today_data.get("eselfConsumption")
+                            if self_consumption is not None:
+                                battery_data["Self_Consumption"] = round(self_consumption * 100, 2)
+                            
+                            self_sufficiency = today_data.get("eselfSufficiency")
+                            if self_sufficiency is not None:
+                                battery_data["Self_Sufficiency"] = round(self_sufficiency * 100, 2)
+                            
+                            # Environmental stats
+                            battery_data["Trees_Planted"] = today_data.get("treeNum")
+                            carbon_kg = today_data.get("carbonNum")
+                            if carbon_kg is not None:
+                                battery_data["CO2_Reduction_Tons"] = round(carbon_kg / 1000, 2)
+                            
+                            # Financial (optional)
+                            battery_data["Today_Income"] = today_data.get("todayIncome")
+                            battery_data["Total_Income"] = today_data.get("totalIncome")
+                    else:
+                        _LOGGER.warning(
+                            "Failed to get today's stats with code %s: %s", 
+                            today_result.get("code"), 
+                            today_result.get("msg")
+                        )
+                else:
+                    _LOGGER.warning(
+                        "Failed to get today's stats with status %s", 
+                        today_response.status
+                    )
+            
             _LOGGER.debug("Combined battery data: %s", battery_data)
             return battery_data
                 
