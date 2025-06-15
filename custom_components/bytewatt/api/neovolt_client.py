@@ -33,7 +33,7 @@ class NeovoltClient:
         self.base_url = base_url
         self.session = async_get_clientsession(hass)
         self.token: Optional[str] = None
-        self._settings_cache = {}
+        self._settings_cache = None
     
     async def async_login(self) -> bool:
         """Login to the Neovolt API using encrypted password."""
@@ -417,6 +417,24 @@ class NeovoltClient:
             "Authorization": f"Bearer {self.token}"
         }
     
+    async def async_get_battery_settings(self):
+        """Get current battery settings and cache them."""
+        try:
+            from .settings import BatterySettingsAPI
+            
+            settings_api = BatterySettingsAPI(self)
+            settings = await settings_api.fetch_current_settings()
+            
+            if settings:
+                self._settings_cache = settings
+                _LOGGER.debug("Cached battery settings: %s", settings)
+            
+            return settings
+            
+        except Exception as error:
+            _LOGGER.error("Error fetching battery settings: %s", error)
+            return None
+    
     async def async_update_battery_settings(self, 
                                           discharge_start_time: str = None,
                                           discharge_end_time: str = None,
@@ -439,6 +457,11 @@ class NeovoltClient:
                 charge_end_time,
                 minimum_soc
             )
+            
+            # If successful, refresh our cache
+            if result:
+                await self.async_get_battery_settings()
+            
             return result
             
         except Exception as error:

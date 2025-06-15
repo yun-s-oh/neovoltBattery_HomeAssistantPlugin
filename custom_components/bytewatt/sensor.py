@@ -585,17 +585,50 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        # Battery settings control is no longer supported in the new API version
-        return None
+        try:
+            # Get settings from the client's settings cache
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+                settings = client.api_client._settings_cache
+                
+                # Return the appropriate value based on the attribute
+                if self._attribute == "time_disf1a":
+                    return settings.time_disf1a
+                elif self._attribute == "time_dise1a":
+                    return settings.time_dise1a
+                elif self._attribute == "time_chaf1a":
+                    return settings.time_chaf1a
+                elif self._attribute == "time_chae1a":
+                    return settings.time_chae1a
+                elif self._attribute == "bat_use_cap":
+                    return settings.bat_use_cap
+                    
+            return None
+        except Exception as ex:
+            _LOGGER.error(f"Error getting battery settings value for {self._attr_name}: {ex}")
+            return None
     
     @property
     def available(self) -> bool:
-        """Return if entity is available - settings are no longer available."""
-        return False
+        """Return if entity is available."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            return hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache is not None
+        except Exception:
+            return False
     
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
         """Return the state attributes."""
-        return {
-            "unsupported": "Battery settings control is no longer supported in the new API version"
-        }
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+                settings = client.api_client._settings_cache
+                return {
+                    "last_updated": getattr(settings, "last_updated", "Unknown"),
+                    "grid_charge": getattr(settings, "grid_charge", None),
+                    "ctr_dis": getattr(settings, "ctr_dis", None)
+                }
+        except Exception:
+            pass
+        return {}

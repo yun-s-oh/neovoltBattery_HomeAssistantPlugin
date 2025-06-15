@@ -169,6 +169,12 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             with self._timed_operation("get_battery_data"):
                 battery_data = await self.client.get_battery_data()
             
+            # Get battery settings (don't fail if this fails)
+            try:
+                await self.client.api_client.async_get_battery_settings()
+            except Exception as ex:
+                _LOGGER.debug(f"Failed to fetch battery settings: {ex}")
+            
             # If we got battery data, update our cached version and last successful time
             if battery_data:
                 self._last_battery_data = battery_data
