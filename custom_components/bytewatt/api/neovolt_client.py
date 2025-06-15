@@ -465,14 +465,54 @@ class NeovoltClient:
         """Make an async POST request."""
         url = f"{self.base_url}/{endpoint}"
         headers = self._get_auth_headers()
+        # Add specific headers for settings update
+        headers.update({
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "language": "en-US",
+            "platform": "AK9D8H",
+            "System": "alphacloud"
+        })
         
         try:
             async with self.session.post(url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT) as response:
                 if response.status == 200:
                     return await response.json()
                 else:
-                    _LOGGER.error("POST request failed with status %s", response.status)
+                    _LOGGER.error("POST request failed with status %s for URL %s", response.status, url)
+                    _LOGGER.error("Request headers: %s", headers)
+                    _LOGGER.error("Request data: %s", data)
+                    response_text = await response.text()
+                    _LOGGER.error("Response text: %s", response_text)
                     return None
         except Exception as error:
             _LOGGER.error("Error making POST request: %s", error)
+            return None
+    
+    async def _async_put(self, endpoint: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Make an async PUT request."""
+        url = f"{self.base_url}/{endpoint}"
+        headers = self._get_auth_headers()
+        # Add specific headers for settings update
+        headers.update({
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "language": "en-US",
+            "platform": "AK9D8H",
+            "System": "alphacloud"
+        })
+        
+        try:
+            async with self.session.put(url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    _LOGGER.error("PUT request failed with status %s for URL %s", response.status, url)
+                    _LOGGER.error("Request headers: %s", headers)
+                    _LOGGER.error("Request data: %s", data)
+                    response_text = await response.text()
+                    _LOGGER.error("Response text: %s", response_text)
+                    return None
+        except Exception as error:
+            _LOGGER.error("Error making PUT request: %s", error)
             return None

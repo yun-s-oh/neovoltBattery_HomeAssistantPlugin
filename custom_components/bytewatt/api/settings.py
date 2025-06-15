@@ -224,7 +224,13 @@ class BatterySettingsAPI:
         endpoint = "api/iterate/sysSet/updateChargeConfigInfo"
         
         for attempt in range(max_retries):
+            # Try POST first, then PUT if POST fails with 405
             response = await self.api_client._async_post(endpoint, settings.to_dict())
+            
+            # If POST returns 405 (Method Not Allowed), try PUT
+            if response is None:
+                _LOGGER.debug(f"POST failed, trying PUT for settings update (attempt {attempt+1})")
+                response = await self.api_client._async_put(endpoint, settings.to_dict())
             
             if not response:
                 if attempt < max_retries - 1:

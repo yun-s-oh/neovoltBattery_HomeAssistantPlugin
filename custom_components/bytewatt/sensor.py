@@ -533,8 +533,8 @@ class ByteWattLastUpdateSensor(ByteWattSensor):
     def native_value(self):
         """Return the last update time based on coordinator's last successful update."""
         try:
-            if hasattr(self.coordinator, 'last_update_success') and self.coordinator.last_update_success:
-                return self.coordinator.last_update_success.isoformat()
+            if hasattr(self.coordinator, '_last_successful_update') and self.coordinator._last_successful_update:
+                return self.coordinator._last_successful_update.isoformat()
             return None
         except Exception as ex:
             _LOGGER.error(f"Error getting last update time: {ex}")
@@ -543,7 +543,7 @@ class ByteWattLastUpdateSensor(ByteWattSensor):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self.coordinator.last_update_success is not None
+        return hasattr(self.coordinator, '_last_successful_update') and self.coordinator._last_successful_update is not None
 
 
 class ByteWattBatterySettingsSensor(ByteWattSensor):
