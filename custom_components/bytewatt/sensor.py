@@ -108,13 +108,12 @@ async def async_setup_entry(
             "W", 
             "mdi:solar-power"
         ),
-        ByteWattSensor(
+        ByteWattLastUpdateSensor(
             coordinator, 
             entry, 
             SENSOR_LAST_UPDATE, 
             "Last Update", 
             "timestamp", 
-            "createTime", 
             "", 
             "mdi:clock-outline",
             entity_category=EntityCategory.DIAGNOSTIC
@@ -396,9 +395,14 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Return device info."""
+        # Safely get username from config entry data
+        username = "Unknown"
+        if self._config_entry.data:
+            username = self._config_entry.data.get('username', 'Unknown')
+        
         return {
             "identifiers": {(DOMAIN, self._config_entry.entry_id)},
-            "name": f"Byte-Watt Battery ({self._config_entry.data.get('username')})",
+            "name": f"Byte-Watt Battery ({username})",
             "manufacturer": "Byte-Watt",
             "model": "Battery Monitor",
         }
@@ -496,6 +500,50 @@ class ByteWattGridSensor(ByteWattSensor):
             
         # Check if this attribute exists in the data
         return self._attribute in self.coordinator.data["battery"]
+
+
+class ByteWattLastUpdateSensor(ByteWattSensor):
+    """Representation of a Byte-Watt Last Update Sensor that doesn't rely on createTime."""
+    
+    def __init__(
+        self,
+        coordinator,
+        config_entry,
+        sensor_type,
+        name,
+        device_class,
+        unit,
+        icon,
+        entity_category=None,
+    ):
+        """Initialize the Last Update sensor."""
+        super().__init__(
+            coordinator, 
+            config_entry, 
+            sensor_type, 
+            name, 
+            device_class, 
+            "last_update",  # Use a custom attribute name
+            unit, 
+            icon,
+            entity_category
+        )
+
+    @property
+    def native_value(self):
+        """Return the last update time based on coordinator's last successful update."""
+        try:
+            if hasattr(self.coordinator, 'last_update_success') and self.coordinator.last_update_success:
+                return self.coordinator.last_update_success.isoformat()
+            return None
+        except Exception as ex:
+            _LOGGER.error(f"Error getting last update time: {ex}")
+            return None
+    
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success is not None
 
 
 class ByteWattBatterySettingsSensor(ByteWattSensor):
