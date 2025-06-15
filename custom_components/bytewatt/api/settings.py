@@ -1,11 +1,14 @@
 """Battery settings API interface for Byte-Watt integration."""
+import asyncio
 import logging
 import time
 from typing import Optional, Dict, Any, Tuple
 
 from ..models import BatterySettings
 from ..utilities.time_utils import sanitize_time_format
-from .client import ByteWattAPIClient
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .neovolt_client import NeovoltClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -13,7 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 class BatterySettingsAPI:
     """API client for battery settings."""
     
-    def __init__(self, api_client: ByteWattAPIClient):
+    def __init__(self, api_client: 'NeovoltClient'):
         """Initialize the battery settings API client."""
         self.api_client = api_client
         
@@ -61,9 +64,9 @@ class BatterySettingsAPI:
         
         return discharge_start, discharge_end, charge_start, charge_end, min_soc
     
-    def fetch_current_settings(self, max_retries: int = 3, retry_delay: int = 1) -> Optional[BatterySettings]:
+    async def fetch_current_settings(self, max_retries: int = 3, retry_delay: int = 1) -> Optional[BatterySettings]:
         """
-        Fetch current battery settings directly from the API.
+        Fetch current battery settings directly from the API using new endpoint.
         
         Args:
             max_retries: Maximum number of retry attempts
@@ -72,20 +75,21 @@ class BatterySettingsAPI:
         Returns:
             BatterySettings if successful, None if failed
         """
-        endpoint = "api/Account/GetCustomUseESSSetting"
+        # Use new API endpoint with empty id= to get settings for all devices
+        endpoint = "api/iterate/sysSet/getChargeConfigInfo?id="
         
         for attempt in range(max_retries):
-            response = self.api_client.get(endpoint, max_retries=1, retry_delay=0)
+            response = await self.api_client._async_get(endpoint)
             
             if not response:
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
                 continue
                 
             if "data" not in response or "code" not in response or response["code"] != 200:
                 _LOGGER.error(f"Unexpected response format (attempt {attempt+1}/{max_retries}): {response}")
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
                 continue
                 
             # Success! Extract the settings
@@ -95,7 +99,7 @@ class BatterySettingsAPI:
             self._settings_cache = settings
             self._settings_loaded = True
             
-            _LOGGER.info(f"Successfully fetched current settings")
+            _LOGGER.info(f"Successfully fetched current settings from new API")
             _LOGGER.debug(f"Current settings: " +
                          f"Charge: {settings.time_chaf1a}-{settings.time_chae1a}, " +
                          f"Discharge: {settings.time_disf1a}-{settings.time_dise1a}, " +
@@ -112,7 +116,7 @@ class BatterySettingsAPI:
             _LOGGER.warning("Using default settings as fallback")
             return self._settings_cache
     
-    def get_current_settings(self, max_retries: int = 3, retry_delay: int = 1) -> BatterySettings:
+    async def get_current_settings(self, max_retries: int = 3, retry_delay: int = 1) -> BatterySettings:
         """
         Get current battery settings - first try API, then fallback to cache.
         
@@ -124,7 +128,7 @@ class BatterySettingsAPI:
             Current battery settings
         """
         # First try to fetch from API
-        settings = self.fetch_current_settings(max_retries, retry_delay)
+        settings = await self.fetch_current_settings(max_retries, retry_delay)
         
         # If that failed but we have cached settings, use those
         if settings is None and self._settings_loaded:
@@ -138,7 +142,7 @@ class BatterySettingsAPI:
             
         return settings
     
-    def update_battery_settings(self, 
+    async def update_battery_settings(self, 
                               discharge_start_time=None, 
                               discharge_end_time=None,
                               charge_start_time=None,
@@ -173,7 +177,7 @@ class BatterySettingsAPI:
             return False
         
         # Get current settings from the API - this will fetch from API or use cache as fallback
-        current_settings = self.get_current_settings()
+        current_settings = await self.get_current_settings()
         
         # Create a copy of the current settings
         settings = current_settings
@@ -200,9 +204,9 @@ class BatterySettingsAPI:
             _LOGGER.debug(f"Updating minimum SOC to {min_soc}%")
         
         # Send the updated settings to the server
-        return self._send_battery_settings(settings, max_retries, retry_delay)
+        return await self._send_battery_settings(settings, max_retries, retry_delay)
     
-    def _send_battery_settings(self, 
+    async def _send_battery_settings(self, 
                               settings: BatterySettings, 
                               max_retries: int = 5, 
                               retry_delay: int = 1) -> bool:
@@ -217,18 +221,19 @@ class BatterySettingsAPI:
         Returns:
             True if successful, False otherwise
         """
-        endpoint = "api/Account/CustomUseESSSetting"
+        endpoint = "api/iterate/sysSet/updateChargeConfigInfo"
         
         for attempt in range(max_retries):
-            response = self.api_client.post(endpoint, settings.to_dict(), max_retries=1, retry_delay=0)
+            response = await self.api_client._async_post(endpoint, settings.to_dict())
             
             if not response:
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
                 continue
                 
-            if "Success" in str(response):
-                _LOGGER.info(f"Successfully updated battery settings")
+            # Check for successful response based on new API format
+            if response.get("code") == 200 and response.get("msg") == "Success":
+                _LOGGER.info(f"Successfully updated battery settings using new API")
                 # Update settings cache with the successfully sent settings
                 self._settings_cache = settings
                 self._settings_loaded = True
@@ -239,22 +244,22 @@ class BatterySettingsAPI:
                             f"Discharge: {settings.time_disf1a}-{settings.time_dise1a}, " +
                             f"Min SOC: {settings.bat_use_cap}%")
                 return True
-            elif "code" in response and response["code"] == 9007:
-                _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {response.get('info', 'Unknown error')}")
+            elif response.get("code") == 9007:
+                _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {response.get('msg', 'Unknown error')}")
                 # Server is reporting a network issue, let's retry
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
                 continue
             else:
                 _LOGGER.error(f"Unexpected response when setting battery parameters: {response}")
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
                 continue
         
         _LOGGER.error(f"Failed to update battery settings after {max_retries} attempts")
         return False
     
-    def set_battery_settings(self, end_discharge="23:00", max_retries: int = 5, retry_delay: int = 1) -> bool:
+    async def set_battery_settings(self, end_discharge="23:00", max_retries: int = 5, retry_delay: int = 1) -> bool:
         """
         Legacy method for backward compatibility - updates only the discharge end time.
         
@@ -272,7 +277,7 @@ class BatterySettingsAPI:
             _LOGGER.error(f"Invalid end discharge time format: {end_discharge}")
             return False
             
-        return self.update_battery_settings(
+        return await self.update_battery_settings(
             discharge_end_time=sanitized_end_discharge,
             max_retries=max_retries,
             retry_delay=retry_delay

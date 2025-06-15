@@ -260,8 +260,27 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
             _LOGGER.error("No end_discharge time provided")
             return
 
-        _LOGGER.warning("Battery settings control is no longer supported in the new API version")
-        return False
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+        
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+        
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            discharge_end_time=end_discharge
+        )
+        
+        if success:
+            _LOGGER.info(f"Successfully set discharge end time to {end_discharge}")
+        else:
+            _LOGGER.error(f"Failed to set discharge end time to {end_discharge}")
+        
+        return success
     
     # New service - set discharge start time
     async def handle_set_discharge_start_time(call: ServiceCall):
@@ -271,8 +290,27 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
             _LOGGER.error("No start_discharge time provided")
             return
 
-        _LOGGER.warning("Battery settings control is no longer supported in the new API version")
-        return False
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+        
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+        
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            discharge_start_time=start_discharge
+        )
+        
+        if success:
+            _LOGGER.info(f"Successfully set discharge start time to {start_discharge}")
+        else:
+            _LOGGER.error(f"Failed to set discharge start time to {start_discharge}")
+        
+        return success
     
     # New service - set charge start time
     async def handle_set_charge_start_time(call: ServiceCall):
@@ -282,8 +320,27 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
             _LOGGER.error("No start_charge time provided")
             return
 
-        _LOGGER.warning("Battery settings control is no longer supported in the new API version")
-        return False
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+        
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+        
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            charge_start_time=start_charge
+        )
+        
+        if success:
+            _LOGGER.info(f"Successfully set charge start time to {start_charge}")
+        else:
+            _LOGGER.error(f"Failed to set charge start time to {start_charge}")
+        
+        return success
     
     # New service - set charge end time
     async def handle_set_charge_end_time(call: ServiceCall):
@@ -293,8 +350,27 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
             _LOGGER.error("No end_charge time provided")
             return
 
-        _LOGGER.warning("Battery settings control is no longer supported in the new API version")
-        return False
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+        
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+        
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            charge_end_time=end_charge
+        )
+        
+        if success:
+            _LOGGER.info(f"Successfully set charge end time to {end_charge}")
+        else:
+            _LOGGER.error(f"Failed to set charge end time to {end_charge}")
+        
+        return success
     
     # New service - set minimum SOC
     async def handle_set_minimum_soc(call: ServiceCall):
@@ -304,8 +380,27 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
             _LOGGER.error("No minimum_soc provided")
             return
 
-        _LOGGER.warning("Battery settings control is no longer supported in the new API version")
-        return False
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+        
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+        
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            minimum_soc=minimum_soc
+        )
+        
+        if success:
+            _LOGGER.info(f"Successfully set minimum SOC to {minimum_soc}%")
+        else:
+            _LOGGER.error(f"Failed to set minimum SOC to {minimum_soc}%")
+        
+        return success
     
     # New service - update multiple battery settings at once
     async def handle_update_battery_settings(call: ServiceCall):
@@ -323,8 +418,31 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
             _LOGGER.error("No battery settings provided to update")
             return
 
-        _LOGGER.warning("Battery settings control is no longer supported in the new API version")
-        return False
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+        
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+        
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            discharge_start_time=discharge_start_time,
+            discharge_end_time=discharge_end_time,
+            charge_start_time=charge_start_time,
+            charge_end_time=charge_end_time,
+            minimum_soc=minimum_soc
+        )
+        
+        if success:
+            _LOGGER.info("Successfully updated battery settings")
+        else:
+            _LOGGER.error("Failed to update battery settings")
+        
+        return success
 
     # Register all services
     hass.services.async_register(

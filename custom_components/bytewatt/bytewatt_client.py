@@ -32,3 +32,18 @@ class ByteWattClient:
     async def get_device_list(self) -> Optional[Dict[str, Any]]:
         """Get list of devices from the API."""
         return await self.api_client.async_get_device_list()
+    
+    async def update_battery_settings(self, 
+                                    discharge_start_time: str = None,
+                                    discharge_end_time: str = None,
+                                    charge_start_time: str = None,
+                                    charge_end_time: str = None,
+                                    minimum_soc: int = None) -> bool:
+        """Update battery settings."""
+        return await self.api_client.async_update_battery_settings(
+            discharge_start_time=discharge_start_time,
+            discharge_end_time=discharge_end_time,
+            charge_start_time=charge_start_time,
+            charge_end_time=charge_end_time,
+            minimum_soc=minimum_soc
+        )

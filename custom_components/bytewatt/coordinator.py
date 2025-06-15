@@ -1,21 +1,20 @@
 """Data update coordinator for Byte-Watt integration."""
-import logging
-import time
-import json
 import asyncio
+import json
+import logging
 import socket
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple, Set
-from enum import Enum
 import statistics
+import time
 from contextlib import contextmanager
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional, Set
 
-from homeassistant.core import HomeAssistant, callback, Context
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.components.persistent_notification import async_create, async_dismiss
-from homeassistant.util import dt as dt_util
 import voluptuous as vol
+from homeassistant.components.persistent_notification import async_create, async_dismiss
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .bytewatt_client import ByteWattClient
 from .const import (
@@ -32,189 +31,21 @@ from .const import (
     DEFAULT_NOTIFY_ON_RECOVERY,
     DEFAULT_DIAGNOSTICS_MODE,
     DEFAULT_AUTO_RECONNECT_TIME,
+    MAX_DIAGNOSTIC_LOGS,
+    RECENT_DATA_THRESHOLD,
+    STALE_DATA_THRESHOLD,
+    AUTO_RECONNECT_INTERVAL_HOURS,
+    HTTPS_PORT,
 )
+from .utilities.circuit_breaker import CircuitBreaker, CircuitBreakerState
+from .utilities.connection_stats import ConnectionStatistics
+from .utilities.diagnostic_service import DiagnosticService
 
 _LOGGER = logging.getLogger(__name__)
 
 # Notification IDs
 NOTIFICATION_RECOVERY = "bytewatt_recovery"
 NOTIFICATION_ERROR = "bytewatt_error"
-
-# Circuit breaker states
-class CircuitBreakerState(str, Enum):
-    """Circuit breaker states."""
-    CLOSED = "closed"  # Normal operation, requests allowed
-    OPEN = "open"      # Error threshold reached, no requests allowed
-    HALF_OPEN = "half_open"  # Testing if service is back online
-
-
-class ConnectionStatistics:
-    """Track connection health statistics for circuit breaker pattern."""
-    
-    def __init__(self, window_size: int = 10):
-        """Initialize connection statistics."""
-        self.window_size = window_size
-        self.success_history: List[bool] = []
-        self.response_times: List[float] = []
-        self.error_types: Dict[str, int] = {}
-        self.last_success_time: Optional[datetime] = None
-        self.last_error_time: Optional[datetime] = None
-        self.last_error_message: Optional[str] = None
-    
-    def record_success(self, response_time: float):
-        """Record a successful API call."""
-        self.success_history.append(True)
-        self.response_times.append(response_time)
-        self.last_success_time = datetime.now()
-        
-        # Trim history to window size
-        if len(self.success_history) > self.window_size:
-            self.success_history = self.success_history[-self.window_size:]
-            self.response_times = self.response_times[-self.window_size:]
-    
-    def record_failure(self, error_type: str, error_message: str):
-        """Record a failed API call."""
-        self.success_history.append(False)
-        self.last_error_time = datetime.now()
-        self.last_error_message = error_message
-        
-        # Record error type
-        if error_type in self.error_types:
-            self.error_types[error_type] += 1
-        else:
-            self.error_types[error_type] = 1
-        
-        # Trim history to window size
-        if len(self.success_history) > self.window_size:
-            self.success_history = self.success_history[-self.window_size:]
-    
-    @property
-    def success_rate(self) -> float:
-        """Calculate success rate over the window."""
-        if not self.success_history:
-            return 1.0  # Default to 100% if no history
-        
-        return sum(1 for x in self.success_history if x) / len(self.success_history)
-    
-    @property
-    def avg_response_time(self) -> Optional[float]:
-        """Calculate average response time over the window."""
-        if not self.response_times:
-            return None
-        
-        return sum(self.response_times) / len(self.response_times)
-    
-    @property
-    def most_common_error(self) -> Optional[Tuple[str, int]]:
-        """Get the most common error type."""
-        if not self.error_types:
-            return None
-        
-        return max(self.error_types.items(), key=lambda x: x[1])
-    
-    def get_status_report(self) -> Dict[str, Any]:
-        """Generate a status report of connection health."""
-        return {
-            "success_rate": f"{self.success_rate:.2%}",
-            "avg_response_time": f"{self.avg_response_time:.2f}s" if self.avg_response_time else "N/A",
-            "most_common_error": self.most_common_error[0] if self.most_common_error else "None",
-            "error_count": sum(self.error_types.values()),
-            "last_success": self.last_success_time.isoformat() if self.last_success_time else "Never",
-            "last_error": self.last_error_time.isoformat() if self.last_error_time else "Never",
-            "last_error_message": self.last_error_message or "None"
-        }
-
-
-class CircuitBreaker:
-    """Implements circuit breaker pattern for API calls."""
-    
-    def __init__(
-        self, 
-        failure_threshold: float = 0.5,
-        recovery_timeout: int = 300,
-        half_open_timeout: int = 60
-    ):
-        """Initialize circuit breaker with configurable thresholds."""
-        self.state = CircuitBreakerState.CLOSED
-        self.failure_threshold = failure_threshold  # 50% failure rate by default
-        self.recovery_timeout = recovery_timeout  # 5 minutes by default
-        self.half_open_timeout = half_open_timeout  # 1 minute by default
-        self.last_state_change = datetime.now()
-        self.stats = ConnectionStatistics()
-    
-    def record_success(self, response_time: float):
-        """Record a successful API call."""
-        self.stats.record_success(response_time)
-        
-        # If we're in half-open state and got a success, close the circuit
-        if self.state == CircuitBreakerState.HALF_OPEN:
-            _LOGGER.info("Circuit breaker transitioning from HALF_OPEN to CLOSED after successful response")
-            self.state = CircuitBreakerState.CLOSED
-            self.last_state_change = datetime.now()
-    
-    def record_failure(self, error_type: str, error_message: str):
-        """Record a failed API call."""
-        self.stats.record_failure(error_type, error_message)
-        
-        # If success rate drops below threshold, open the circuit
-        if (self.state == CircuitBreakerState.CLOSED and 
-            len(self.stats.success_history) >= 3 and  # Need at least 3 data points
-            self.stats.success_rate < self.failure_threshold):
-            
-            _LOGGER.warning(
-                "Circuit breaker transitioning from CLOSED to OPEN: "
-                f"success rate ({self.stats.success_rate:.2%}) below threshold ({self.failure_threshold:.2%})"
-            )
-            self.state = CircuitBreakerState.OPEN
-            self.last_state_change = datetime.now()
-        
-        # If we're in half-open state and got a failure, back to open
-        elif self.state == CircuitBreakerState.HALF_OPEN:
-            _LOGGER.warning("Circuit breaker transitioning from HALF_OPEN to OPEN after failed response")
-            self.state = CircuitBreakerState.OPEN
-            self.last_state_change = datetime.now()
-    
-    def check_state_transition(self):
-        """Check if circuit breaker state should transition based on timeouts."""
-        now = datetime.now()
-        
-        # If circuit is open and recovery timeout has passed, try half-open
-        if (self.state == CircuitBreakerState.OPEN and 
-            (now - self.last_state_change).total_seconds() > self.recovery_timeout):
-            
-            _LOGGER.info(
-                f"Circuit breaker transitioning from OPEN to HALF_OPEN after {self.recovery_timeout}s timeout"
-            )
-            self.state = CircuitBreakerState.HALF_OPEN
-            self.last_state_change = now
-    
-    def can_execute(self) -> bool:
-        """Check if the API call should be allowed based on circuit state."""
-        self.check_state_transition()
-        
-        if self.state == CircuitBreakerState.CLOSED:
-            return True
-        elif self.state == CircuitBreakerState.HALF_OPEN:
-            # In half-open state, allow one request to test the service
-            return True
-        else:  # OPEN
-            return False
-    
-    def get_status_report(self) -> Dict[str, Any]:
-        """Generate a status report of circuit breaker health."""
-        state_duration = (datetime.now() - self.last_state_change).total_seconds()
-        
-        report = {
-            "state": self.state.value,
-            "state_duration": f"{state_duration:.0f}s",
-            "failure_threshold": f"{self.failure_threshold:.2%}",
-            "recovery_timeout": f"{self.recovery_timeout}s",
-        }
-        
-        # Add connection statistics
-        report.update(self.stats.get_status_report())
-        
-        return report
 
 
 class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
@@ -240,14 +71,14 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         self._heartbeat_unsub = None
         self._recovery_attempts = 0
         self._auto_reconnect_unsub = None
-        self._diagnostics_enabled = False
         self._webhook_id = None
         self._webhook_unsub = None
-        self._diagnostic_logs: List[Dict[str, Any]] = []
-        self._max_diagnostic_logs = 100
         
         # Connection health tracking
         self.circuit_breaker = CircuitBreaker()
+        
+        # Diagnostic service
+        self.diagnostic_service = DiagnosticService()
         
         # Load options
         options = options or {}
@@ -259,7 +90,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         self._auto_reconnect_time = options.get(CONF_AUTO_RECONNECT_TIME, DEFAULT_AUTO_RECONNECT_TIME)
         
         if self._diagnostics_mode:
-            self._enable_diagnostics()
+            self.diagnostic_service.enable_diagnostics()
 
         super().__init__(
             hass,
@@ -268,34 +99,6 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=scan_interval),
         )
 
-    def _enable_diagnostics(self):
-        """Enable diagnostic logging mode."""
-        self._diagnostics_enabled = True
-        _LOGGER.info("ByteWatt diagnostic logging mode enabled")
-    
-    def _disable_diagnostics(self):
-        """Disable diagnostic logging mode."""
-        self._diagnostics_enabled = False
-        self._diagnostic_logs.clear()
-        _LOGGER.info("ByteWatt diagnostic logging mode disabled")
-    
-    def _log_diagnostic(self, event_type: str, details: Dict[str, Any]):
-        """Log a diagnostic event."""
-        if not self._diagnostics_enabled:
-            return
-            
-        # Add timestamp and event type
-        event = {
-            "timestamp": datetime.now().isoformat(),
-            "event_type": event_type,
-            **details
-        }
-        
-        self._diagnostic_logs.append(event)
-        
-        # Trim log if needed
-        if len(self._diagnostic_logs) > self._max_diagnostic_logs:
-            self._diagnostic_logs = self._diagnostic_logs[-self._max_diagnostic_logs:]
     
     @contextmanager
     def _timed_operation(self, operation_name: str):
@@ -312,7 +115,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             end_time = time.time()
             duration = end_time - start_time
             
-            if self._diagnostics_enabled:
+            if self.diagnostic_service.diagnostics_enabled:
                 details = {
                     "operation": operation_name,
                     "duration": f"{duration:.3f}s",
@@ -323,7 +126,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                     details["error"] = str(error)
                     details["error_type"] = type(error).__name__
                 
-                self._log_diagnostic("operation", details)
+                self.diagnostic_service.log_diagnostic("operation", details)
                 
                 # Record in circuit breaker stats
                 if error:
@@ -345,7 +148,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning(
                     f"Circuit breaker is {self.circuit_breaker.state.value}, using cached data"
                 )
-                self._log_diagnostic("circuit_breaker_blocked", {
+                self.diagnostic_service.log_diagnostic("circuit_breaker_blocked", {
                     "state": self.circuit_breaker.state.value,
                     "stats": self.circuit_breaker.get_status_report()
                 })
@@ -373,14 +176,14 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 self._consecutive_stale_checks = 0
                 self._recovery_attempts = 0  # Reset recovery attempts on successful update
                 
-                self._log_diagnostic("data_update", {
+                self.diagnostic_service.log_diagnostic("data_update", {
                     "type": "battery_data",
                     "result": "success"
                 })
             elif self._last_battery_data is None:
                 # Only raise error if we never got data
                 error_msg = "Failed to get battery data and no cached data available"
-                self._log_diagnostic("data_update", {
+                self.diagnostic_service.log_diagnostic("data_update", {
                     "type": "battery_data",
                     "result": "failure",
                     "error": error_msg
@@ -388,7 +191,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 raise UpdateFailed(error_msg)
             else:
                 _LOGGER.warning("Using cached battery data due to API error")
-                self._log_diagnostic("data_update", {
+                self.diagnostic_service.log_diagnostic("data_update", {
                     "type": "battery_data",
                     "result": "fallback_to_cache"
                 })
@@ -412,7 +215,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             return data
         except Exception as err:
             # Record the error in diagnostics
-            self._log_diagnostic("update_error", {
+            self.diagnostic_service.log_diagnostic("update_error", {
                 "error_type": type(err).__name__,
                 "error_message": str(err)
             })
@@ -426,9 +229,9 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 cache_age = "unknown"
                 if self._last_successful_update:
                     age_seconds = (current_time - self._last_successful_update).total_seconds()
-                    if age_seconds < 300:  # 5 minutes
+                    if age_seconds < RECENT_DATA_THRESHOLD:
                         cache_age = "fresh"
-                    elif age_seconds < 3600:  # 1 hour
+                    elif age_seconds < STALE_DATA_THRESHOLD:
                         cache_age = "recent"
                     else:
                         cache_age = "stale"
@@ -473,7 +276,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         await self.start_auto_reconnect()
         
         # Log this in diagnostics
-        self._log_diagnostic("service_started", {
+        self.diagnostic_service.log_diagnostic("service_started", {
             "heartbeat_interval": self._heartbeat_interval,
             "auto_reconnect_time": self._auto_reconnect_time
         })
@@ -487,9 +290,9 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         self._auto_reconnect_unsub = async_track_time_interval(
             self.hass,
             self._handle_auto_reconnect,
-            timedelta(hours=24)
+            timedelta(hours=AUTO_RECONNECT_INTERVAL_HOURS)
         )
-        _LOGGER.info("Automatic reconnect scheduled every 24 hours")
+        _LOGGER.info(f"Automatic reconnect scheduled every {AUTO_RECONNECT_INTERVAL_HOURS} hours")
         
         # Immediately run a check if a time is configured
         if hasattr(self, '_auto_reconnect_time') and self._auto_reconnect_time:
@@ -509,7 +312,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         """Handle scheduled automatic reconnection."""
         current_time = datetime.now()
         _LOGGER.info(f"Executing scheduled auto reconnect at {current_time.strftime('%H:%M:%S')}")
-        self._log_diagnostic("auto_reconnect", {
+        self.diagnostic_service.log_diagnostic("auto_reconnect", {
             "trigger": "scheduled",
             "time": current_time.isoformat()
         })
@@ -548,7 +351,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         current_time = datetime.now()
         
         # Log heartbeat check in diagnostics
-        self._log_diagnostic("heartbeat_check", {
+        self.diagnostic_service.log_diagnostic("heartbeat_check", {
             "timestamp": current_time.isoformat(),
             "last_update": self._last_successful_update.isoformat() if self._last_successful_update else "never"
         })
@@ -573,7 +376,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 f"Stale checks: {self._consecutive_stale_checks}/{self._stale_checks_threshold}"
             )
             
-            self._log_diagnostic("stale_data", {
+            self.diagnostic_service.log_diagnostic("stale_data", {
                 "age_seconds": data_age_seconds,
                 "consecutive_checks": self._consecutive_stale_checks,
                 "threshold": self._stale_checks_threshold
@@ -586,7 +389,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # Data is fresh, reset counter
             if self._consecutive_stale_checks > 0:
                 _LOGGER.debug("Data is fresh, resetting stale check counter")
-                self._log_diagnostic("fresh_data", {
+                self.diagnostic_service.log_diagnostic("fresh_data", {
                     "age_seconds": data_age_seconds,
                     "reset_counter_from": self._consecutive_stale_checks
                 })
@@ -603,7 +406,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         
         # Record recovery attempt in diagnostics
         recovery_timestamp = datetime.now()
-        self._log_diagnostic("recovery_attempt", {
+        self.diagnostic_service.log_diagnostic("recovery_attempt", {
             "attempt": self._recovery_attempts,
             "type": recovery_type,
             "timestamp": recovery_timestamp.isoformat()
@@ -623,9 +426,9 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         
         try:
             # Step 1: Network diagnostics (if diagnostics enabled)
-            if self._diagnostics_enabled:
+            if self.diagnostic_service.diagnostics_enabled:
                 network_status = await self.hass.async_add_executor_job(self._check_network)
-                self._log_diagnostic("network_check", network_status)
+                self.diagnostic_service.log_diagnostic("network_check", network_status)
             
             # Step 2: Reset client state
             with self._timed_operation("reset_client"):
@@ -640,7 +443,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             
             # Record success in diagnostics
             success_timestamp = datetime.now()
-            self._log_diagnostic("recovery_result", {
+            self.diagnostic_service.log_diagnostic("recovery_result", {
                 "success": True,
                 "timestamp": success_timestamp.isoformat()
             })
@@ -661,7 +464,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             
             # Record failure in diagnostics
             failure_timestamp = datetime.now()
-            self._log_diagnostic("recovery_result", {
+            self.diagnostic_service.log_diagnostic("recovery_result", {
                 "success": False,
                 "error": str(err),
                 "error_type": type(err).__name__,
@@ -726,25 +529,25 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 "error": str(e)
             }
         
-        # Simple TCP connection test on port 443 (HTTPS)
+        # Simple TCP connection test on HTTPS port
         try:
             start_time = time.time()
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(5)
-            s.connect((domain, 443))
+            s.connect((domain, HTTPS_PORT))
             s.close()
             end_time = time.time()
             result["ping_check"] = {
                 "success": True,
                 "domain": domain,
-                "port": 443,
+                "port": HTTPS_PORT,
                 "response_time": f"{(end_time - start_time) * 1000:.2f}ms"
             }
         except Exception as e:
             result["ping_check"] = {
                 "success": False,
                 "domain": domain,
-                "port": 443,
+                "port": HTTPS_PORT,
                 "error": str(e)
             }
         
@@ -760,7 +563,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.info("ByteWatt client state has been reset")
             
             # Record diagnostics
-            self._log_diagnostic("client_reset", {
+            self.diagnostic_service.log_diagnostic("client_reset", {
                 "success": True,
                 "timestamp": datetime.now().isoformat()
             })
@@ -768,7 +571,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"Error resetting ByteWatt client: {err}")
             
             # Record diagnostics
-            self._log_diagnostic("client_reset", {
+            self.diagnostic_service.log_diagnostic("client_reset", {
                 "success": False,
                 "error": str(err),
                 "error_type": type(err).__name__,
@@ -792,7 +595,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         }
         
         # Record in diagnostics
-        self._log_diagnostic("health_check", {"timestamp": health_timestamp.isoformat()})
+        self.diagnostic_service.log_diagnostic("health_check", {"timestamp": health_timestamp.isoformat()})
         
         # Check network connectivity
         try:
@@ -848,7 +651,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             "max_data_age": f"{self._max_data_age}s",
             "stale_checks_threshold": self._stale_checks_threshold,
             "notifications_enabled": self._notify_on_recovery,
-            "diagnostics_enabled": self._diagnostics_enabled,
+            "diagnostics_enabled": self.diagnostic_service.diagnostics_enabled,
             "auto_reconnect_time": self._auto_reconnect_time
         }
         
@@ -871,27 +674,14 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             health_result["connection_status"] = "disconnected"
         
         # Log result to diagnostics
-        self._log_diagnostic("health_check_result", health_result)
+        self.diagnostic_service.log_diagnostic("health_check_result", health_result)
         
         return health_result
     
     def toggle_diagnostics_mode(self, enable: Optional[bool] = None) -> Dict[str, Any]:
         """Toggle or set diagnostics mode."""
-        if enable is None:
-            # Toggle current state
-            enable = not self._diagnostics_enabled
-        
-        if enable:
-            self._enable_diagnostics()
-        else:
-            self._disable_diagnostics()
-        
-        toggle_timestamp = datetime.now()
-        return {
-            "diagnostics_mode": self._diagnostics_enabled,
-            "timestamp": toggle_timestamp.isoformat()
-        }
+        return self.diagnostic_service.toggle_diagnostics_mode(enable)
     
     def get_diagnostic_logs(self) -> List[Dict[str, Any]]:
         """Get all diagnostic logs."""
-        return self._diagnostic_logs
+        return self.diagnostic_service.get_diagnostic_logs()

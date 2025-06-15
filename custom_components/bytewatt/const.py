@@ -79,3 +79,10 @@ SENSOR_SELF_CONSUMPTION = "self_consumption"
 SENSOR_SELF_SUFFICIENCY = "self_sufficiency"
 SENSOR_TREES_PLANTED = "trees_planted"
 SENSOR_CO2_REDUCTION = "co2_reduction_tons"
+
+# Circuit breaker and connection constants
+MAX_DIAGNOSTIC_LOGS = 100
+RECENT_DATA_THRESHOLD = 300  # 5 minutes in seconds
+STALE_DATA_THRESHOLD = 3600  # 1 hour in seconds
+AUTO_RECONNECT_INTERVAL_HOURS = 24  # 24 hours
+HTTPS_PORT = 443

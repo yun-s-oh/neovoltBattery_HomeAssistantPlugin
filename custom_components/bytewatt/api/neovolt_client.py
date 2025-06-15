@@ -416,3 +416,63 @@ class NeovoltClient:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.token}"
         }
+    
+    async def async_update_battery_settings(self, 
+                                          discharge_start_time: str = None,
+                                          discharge_end_time: str = None,
+                                          charge_start_time: str = None,
+                                          charge_end_time: str = None,
+                                          minimum_soc: int = None) -> bool:
+        """Update battery settings."""
+        try:
+            # Import the settings API
+            from .settings import BatterySettingsAPI
+            
+            # Create settings API instance
+            settings_api = BatterySettingsAPI(self)
+            
+            # Use the async method directly
+            result = await settings_api.update_battery_settings(
+                discharge_start_time,
+                discharge_end_time,
+                charge_start_time,
+                charge_end_time,
+                minimum_soc
+            )
+            return result
+            
+        except Exception as error:
+            _LOGGER.error("Error updating battery settings: %s", error)
+            return False
+    
+    async def _async_get(self, endpoint: str) -> Optional[Dict[str, Any]]:
+        """Make an async GET request."""
+        url = f"{self.base_url}/{endpoint}"
+        headers = self._get_auth_headers()
+        
+        try:
+            async with self.session.get(url, headers=headers, timeout=DEFAULT_TIMEOUT) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    _LOGGER.error("GET request failed with status %s", response.status)
+                    return None
+        except Exception as error:
+            _LOGGER.error("Error making GET request: %s", error)
+            return None
+    
+    async def _async_post(self, endpoint: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Make an async POST request."""
+        url = f"{self.base_url}/{endpoint}"
+        headers = self._get_auth_headers()
+        
+        try:
+            async with self.session.post(url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    _LOGGER.error("POST request failed with status %s", response.status)
+                    return None
+        except Exception as error:
+            _LOGGER.error("Error making POST request: %s", error)
+            return None
