@@ -212,7 +212,7 @@ async def async_setup_entry(
             SENSOR_DISCHARGE_START, 
             "Discharge Start Time", 
             "timestamp", 
-            "time_disf1a", 
+            "timeDisf1", 
             "", 
             "mdi:battery-minus"
         ),
@@ -222,7 +222,7 @@ async def async_setup_entry(
             SENSOR_DISCHARGE_END, 
             "Discharge End Time", 
             "timestamp", 
-            "time_dise1a", 
+            "timeDise1", 
             "", 
             "mdi:battery-minus-outline"
         ),
@@ -232,7 +232,7 @@ async def async_setup_entry(
             SENSOR_CHARGE_START, 
             "Charge Start Time", 
             "timestamp", 
-            "time_chaf1a", 
+            "timeChaf1", 
             "", 
             "mdi:battery-plus"
         ),
@@ -242,7 +242,7 @@ async def async_setup_entry(
             SENSOR_CHARGE_END, 
             "Charge End Time", 
             "timestamp", 
-            "time_chae1a", 
+            "timeChae1", 
             "", 
             "mdi:battery-plus-outline"
         ),
@@ -252,7 +252,7 @@ async def async_setup_entry(
             SENSOR_MIN_SOC, 
             "Minimum SOC", 
             "battery", 
-            "bat_use_cap", 
+            "batUseCap", 
             "%", 
             "mdi:battery-low"
         ),
@@ -592,16 +592,16 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
                 settings = client.api_client._settings_cache
                 
                 # Return the appropriate value based on the attribute
-                if self._attribute == "time_disf1a":
-                    return settings.time_disf1a
-                elif self._attribute == "time_dise1a":
-                    return settings.time_dise1a
-                elif self._attribute == "time_chaf1a":
-                    return settings.time_chaf1a
-                elif self._attribute == "time_chae1a":
-                    return settings.time_chae1a
-                elif self._attribute == "bat_use_cap":
-                    return settings.bat_use_cap
+                if self._attribute == "timeDisf1":
+                    return settings.get("timeDisf1")
+                elif self._attribute == "timeDise1":
+                    return settings.get("timeDise1")
+                elif self._attribute == "timeChaf1":
+                    return settings.get("timeChaf1")
+                elif self._attribute == "timeChae1":
+                    return settings.get("timeChae1")
+                elif self._attribute == "batUseCap":
+                    return settings.get("batUseCap")
                     
             return None
         except Exception as ex:
@@ -625,9 +625,9 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
             if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
                 settings = client.api_client._settings_cache
                 return {
-                    "last_updated": getattr(settings, "last_updated", "Unknown"),
-                    "grid_charge": getattr(settings, "grid_charge", None),
-                    "ctr_dis": getattr(settings, "ctr_dis", None)
+                    "last_updated": settings.get("last_updated", "Unknown"),
+                    "grid_charge": settings.get("gridCharge", None),
+                    "ctr_dis": settings.get("ctrDis", None)
                 }
         except Exception:
             pass

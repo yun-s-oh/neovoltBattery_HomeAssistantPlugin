@@ -279,6 +279,7 @@ class NeovoltClient:
                 "endDate": end_date
             }
             
+            _LOGGER.info("Fetching energy statistics from: %s with params: %s", stats_url, stats_params)
             async with asyncio.timeout(DEFAULT_TIMEOUT):
                 # Add try/except for stats request to avoid breaking the whole function if stats fails
                 try:
@@ -288,18 +289,18 @@ class NeovoltClient:
                         headers=headers
                     )
                 except (asyncio.TimeoutError, aiohttp.ClientError) as stats_error:
-                    _LOGGER.warning("Error fetching energy statistics: %s", stats_error)
+                    _LOGGER.error("Error fetching energy statistics: %s", stats_error)
                     # Return the power data we already have instead of failing completely
                     _LOGGER.debug("Returning only power data due to statistics fetch error")
                     return battery_data
                 
                 if stats_response.status == 200:
                     stats_result = await stats_response.json()
+                    _LOGGER.info("Energy statistics response: %s", stats_result)
                     
                     if stats_result.get("code") == 200 or stats_result.get("code") == 0:
                         stats_data = stats_result.get("data", {})
-                        _LOGGER.debug("Received energy statistics data: %s", stats_data)
-                        _LOGGER.debug("Available statistics attributes: %s", list(stats_data.keys()) if stats_data else None)
+                        _LOGGER.info("Energy statistics data fields: %s", list(stats_data.keys()) if stats_data else "No data")
                         
                         # Map the statistics data to the grid sensor names
                         if stats_data:
@@ -320,13 +321,13 @@ class NeovoltClient:
                             # Grid power consumption
                             battery_data["Grid_Power_Consumption"] = stats_data.get("einput")
                     else:
-                        _LOGGER.warning(
+                        _LOGGER.error(
                             "Failed to get energy statistics with code %s: %s", 
                             stats_result.get("code"), 
                             stats_result.get("msg")
                         )
                 else:
-                    _LOGGER.warning(
+                    _LOGGER.error(
                         "Failed to get energy statistics with status %s", 
                         stats_response.status
                     )
@@ -341,7 +342,7 @@ class NeovoltClient:
                 "tday": today_date
             }
             
-            _LOGGER.debug("Fetching today's stats for date: %s", today_date)
+            _LOGGER.info("Fetching today's stats from: %s with params: %s", today_url, today_params)
             
             async with asyncio.timeout(DEFAULT_TIMEOUT):
                 try:
@@ -351,16 +352,17 @@ class NeovoltClient:
                         headers=headers
                     )
                 except (asyncio.TimeoutError, aiohttp.ClientError) as today_error:
-                    _LOGGER.warning("Error fetching today's stats: %s", today_error)
+                    _LOGGER.error("Error fetching today's stats: %s", today_error)
                     # Return what we have so far
                     return battery_data
                 
                 if today_response.status == 200:
                     today_result = await today_response.json()
+                    _LOGGER.info("Today's stats response: %s", today_result)
                     
                     if today_result.get("code") == 200:
                         today_data = today_result.get("data", {})
-                        _LOGGER.debug("Received today's stats data: %s", today_data)
+                        _LOGGER.info("Today's stats data fields: %s", list(today_data.keys()) if today_data else "No data")
                         
                         # Map today's stats to battery data
                         if today_data:
@@ -392,13 +394,13 @@ class NeovoltClient:
                             battery_data["Today_Income"] = today_data.get("todayIncome")
                             battery_data["Total_Income"] = today_data.get("totalIncome")
                     else:
-                        _LOGGER.warning(
+                        _LOGGER.error(
                             "Failed to get today's stats with code %s: %s", 
                             today_result.get("code"), 
                             today_result.get("msg")
                         )
                 else:
-                    _LOGGER.warning(
+                    _LOGGER.error(
                         "Failed to get today's stats with status %s", 
                         today_response.status
                     )
