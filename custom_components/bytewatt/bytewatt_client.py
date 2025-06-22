@@ -38,12 +38,14 @@ class ByteWattClient:
                                     discharge_end_time: str = None,
                                     charge_start_time: str = None,
                                     charge_end_time: str = None,
-                                    minimum_soc: int = None) -> bool:
+                                    minimum_soc: int = None,
+                                    charge_cap: int = None) -> bool:
         """Update battery settings."""
         return await self.api_client.async_update_battery_settings(
             discharge_start_time=discharge_start_time,
             discharge_end_time=discharge_end_time,
             charge_start_time=charge_start_time,
             charge_end_time=charge_end_time,
-            minimum_soc=minimum_soc
+            minimum_soc=minimum_soc,
+            charge_cap=charge_cap
         )

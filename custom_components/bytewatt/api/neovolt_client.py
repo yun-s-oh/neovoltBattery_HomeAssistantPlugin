@@ -442,7 +442,8 @@ class NeovoltClient:
                                           discharge_end_time: str = None,
                                           charge_start_time: str = None,
                                           charge_end_time: str = None,
-                                          minimum_soc: int = None) -> bool:
+                                          minimum_soc: int = None,
+                                          charge_cap: int = None) -> bool:
         """Update battery settings."""
         try:
             # Import the settings API
@@ -457,7 +458,8 @@ class NeovoltClient:
                 discharge_end_time,
                 charge_start_time,
                 charge_end_time,
-                minimum_soc
+                minimum_soc,
+                charge_cap
             )
             
             # If successful, refresh our cache

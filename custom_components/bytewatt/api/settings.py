@@ -29,7 +29,8 @@ class BatterySettingsAPI:
                               discharge_end_time, 
                               charge_start_time, 
                               charge_end_time, 
-                              minimum_soc):
+                              minimum_soc,
+                              charge_cap=None):
         """
         Validate input parameters for battery settings.
         
@@ -39,9 +40,10 @@ class BatterySettingsAPI:
             charge_start_time: Time to start battery charging
             charge_end_time: Time to end battery charging
             minimum_soc: Minimum state of charge percentage
+            charge_cap: Maximum charge cap percentage
             
         Returns:
-            Tuple of validated values (discharge_start, discharge_end, charge_start, charge_end, min_soc)
+            Tuple of validated values (discharge_start, discharge_end, charge_start, charge_end, min_soc, max_charge_cap)
             Invalid values will be None
         """
         # Sanitize time formats
@@ -62,7 +64,19 @@ class BatterySettingsAPI:
             except (ValueError, TypeError):
                 _LOGGER.error(f"Invalid minimum SOC value: {minimum_soc}")
         
-        return discharge_start, discharge_end, charge_start, charge_end, min_soc
+        # Validate charge cap
+        max_charge_cap = None
+        if charge_cap is not None:
+            try:
+                charge_cap_val = int(charge_cap)
+                if 1 <= charge_cap_val <= 100:
+                    max_charge_cap = charge_cap_val
+                else:
+                    _LOGGER.error(f"Charge cap must be between 1 and 100, got {charge_cap}")
+            except (ValueError, TypeError):
+                _LOGGER.error(f"Invalid charge cap value: {charge_cap}")
+        
+        return discharge_start, discharge_end, charge_start, charge_end, min_soc, max_charge_cap
     
     async def fetch_current_settings(self, max_retries: int = 3, retry_delay: int = 1) -> Optional[BatterySettings]:
         """
@@ -148,6 +162,7 @@ class BatterySettingsAPI:
                               charge_start_time=None,
                               charge_end_time=None,
                               minimum_soc=None,
+                              charge_cap=None,
                               max_retries: int = 5, 
                               retry_delay: int = 1) -> bool:
         """
@@ -159,6 +174,7 @@ class BatterySettingsAPI:
             charge_start_time: Time to start battery charging (format HH:MM)
             charge_end_time: Time to end battery charging (format HH:MM)
             minimum_soc: Minimum state of charge percentage to maintain (1-100)
+            charge_cap: Maximum charge cap percentage (1-100)
             max_retries: Maximum number of retry attempts
             retry_delay: Delay between retries in seconds
             
@@ -166,13 +182,13 @@ class BatterySettingsAPI:
             True if successful, False otherwise
         """
         # Validate all inputs
-        discharge_start, discharge_end, charge_start, charge_end, min_soc = self.validate_settings_input(
-            discharge_start_time, discharge_end_time, charge_start_time, charge_end_time, minimum_soc
+        discharge_start, discharge_end, charge_start, charge_end, min_soc, max_charge_cap = self.validate_settings_input(
+            discharge_start_time, discharge_end_time, charge_start_time, charge_end_time, minimum_soc, charge_cap
         )
         
         # Check if any changes were made
         if (discharge_start is None and discharge_end is None and 
-            charge_start is None and charge_end is None and min_soc is None):
+            charge_start is None and charge_end is None and min_soc is None and max_charge_cap is None):
             _LOGGER.warning("No valid battery settings provided, nothing to update")
             return False
         
@@ -202,6 +218,10 @@ class BatterySettingsAPI:
         if min_soc is not None:
             settings.bat_use_cap = min_soc
             _LOGGER.debug(f"Updating minimum SOC to {min_soc}%")
+        
+        if max_charge_cap is not None:
+            settings.bat_high_cap = str(max_charge_cap)
+            _LOGGER.debug(f"Updating charge cap to {max_charge_cap}%")
         
         # Send the updated settings to the server
         return await self._send_battery_settings(settings, max_retries, retry_delay)

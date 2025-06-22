@@ -34,6 +34,7 @@ from .const import (
     SENSOR_CHARGE_START,
     SENSOR_CHARGE_END,
     SENSOR_MIN_SOC,
+    SENSOR_CHARGE_CAP,
     SENSOR_PV_GENERATED_TODAY,
     SENSOR_CONSUMED_TODAY,
     SENSOR_FEED_IN_TODAY,
@@ -255,6 +256,16 @@ async def async_setup_entry(
             "batUseCap", 
             "%", 
             "mdi:battery-low"
+        ),
+        ByteWattBatterySettingsSensor(
+            coordinator, 
+            entry, 
+            SENSOR_CHARGE_CAP, 
+            "Battery Charge Cap", 
+            "battery", 
+            "batHighCap", 
+            "%", 
+            "mdi:battery-high"
         ),
     ]
     
@@ -602,6 +613,8 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
                     return settings.get("timeChae1")
                 elif self._attribute == "batUseCap":
                     return settings.get("batUseCap")
+                elif self._attribute == "batHighCap":
+                    return settings.get("batHighCap")
                     
             return None
         except Exception as ex:
@@ -627,7 +640,8 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
                 return {
                     "last_updated": settings.get("last_updated", "Unknown"),
                     "grid_charge": settings.get("gridCharge", None),
-                    "ctr_dis": settings.get("ctrDis", None)
+                    "ctr_dis": settings.get("ctrDis", None),
+                    "bat_high_cap": settings.get("batHighCap", None)
                 }
         except Exception:
             pass

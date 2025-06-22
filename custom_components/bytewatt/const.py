@@ -31,6 +31,7 @@ SERVICE_SET_DISCHARGE_START_TIME = "set_discharge_start_time"
 SERVICE_SET_CHARGE_START_TIME = "set_charge_start_time"
 SERVICE_SET_CHARGE_END_TIME = "set_charge_end_time"
 SERVICE_SET_MINIMUM_SOC = "set_minimum_soc"
+SERVICE_SET_CHARGE_CAP = "set_charge_cap"
 SERVICE_UPDATE_BATTERY_SETTINGS = "update_battery_settings"
 SERVICE_FORCE_RECONNECT = "force_reconnect"  # Force client reconnection for troubleshooting
 SERVICE_HEALTH_CHECK = "health_check"  # Check connection health and return diagnostics
@@ -42,6 +43,7 @@ ATTR_START_DISCHARGE = "start_discharge"
 ATTR_START_CHARGE = "start_charge"
 ATTR_END_CHARGE = "end_charge"
 ATTR_MINIMUM_SOC = "minimum_soc"
+ATTR_CHARGE_CAP = "charge_cap"
 
 # Sensor types
 SENSOR_SOC = "soc"
@@ -57,6 +59,7 @@ SENSOR_DISCHARGE_END = "discharge_end_time"
 SENSOR_CHARGE_START = "charge_start_time"
 SENSOR_CHARGE_END = "charge_end_time"
 SENSOR_MIN_SOC = "minimum_soc"
+SENSOR_CHARGE_CAP = "charge_cap"
 
 # Grid stats sensor types
 SENSOR_TOTAL_SOLAR = "total_solar_generation"

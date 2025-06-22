@@ -107,6 +107,22 @@ set_minimum_soc:
           step: 1
           unit_of_measurement: "%"
 
+set_charge_cap:
+  name: Set Charge Cap
+  description: Set the maximum battery charge cap percentage
+  fields:
+    charge_cap:
+      name: Charge Cap
+      description: The maximum battery charge cap to maintain (1-100%)
+      example: 90
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
 update_battery_settings:
   name: Update Battery Settings
   description: Update multiple battery settings at once
@@ -150,3 +166,26 @@ update_battery_settings:
           max: 100
           step: 1
           unit_of_measurement: "%"
+    charge_cap:
+      name: Charge Cap
+      description: The maximum battery charge cap to maintain (1-100%)
+      example: 90
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+force_reconnect:
+  name: Force Reconnect
+  description: Force reconnection to the ByteWatt API
+
+health_check:
+  name: Health Check
+  description: Run a comprehensive health check of the ByteWatt integration
+
+toggle_diagnostics:
+  name: Toggle Diagnostics
+  description: Enable or disable diagnostic logging for the ByteWatt integration

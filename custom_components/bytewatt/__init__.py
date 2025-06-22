@@ -36,6 +36,7 @@ from .const import (
     SERVICE_SET_CHARGE_START_TIME,
     SERVICE_SET_CHARGE_END_TIME,
     SERVICE_SET_MINIMUM_SOC,
+    SERVICE_SET_CHARGE_CAP,
     SERVICE_UPDATE_BATTERY_SETTINGS,
     SERVICE_FORCE_RECONNECT,
     SERVICE_HEALTH_CHECK,
@@ -45,6 +46,7 @@ from .const import (
     ATTR_START_CHARGE,
     ATTR_END_CHARGE,
     ATTR_MINIMUM_SOC,
+    ATTR_CHARGE_CAP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -402,6 +404,35 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         
         return success
     
+    async def handle_set_charge_cap(call: ServiceCall):
+        """Handle the service call to set charge cap."""
+        charge_cap = call.data.get(ATTR_CHARGE_CAP)
+        if charge_cap is None:
+            _LOGGER.error("No charge_cap provided")
+            return
+
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+        
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+        
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            charge_cap=charge_cap
+        )
+        
+        if success:
+            _LOGGER.info(f"Successfully set charge cap to {charge_cap}%")
+        else:
+            _LOGGER.error(f"Failed to set charge cap to {charge_cap}%")
+        
+        return success
+    
     # New service - update multiple battery settings at once
     async def handle_update_battery_settings(call: ServiceCall):
         """Handle the service call to update multiple battery settings at once."""
@@ -410,11 +441,12 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         charge_start_time = call.data.get(ATTR_START_CHARGE)
         charge_end_time = call.data.get(ATTR_END_CHARGE)
         minimum_soc = call.data.get(ATTR_MINIMUM_SOC)
+        charge_cap = call.data.get(ATTR_CHARGE_CAP)
         
         # Check if at least one parameter is provided
         if (discharge_start_time is None and discharge_end_time is None and
                 charge_start_time is None and charge_end_time is None and
-                minimum_soc is None):
+                minimum_soc is None and charge_cap is None):
             _LOGGER.error("No battery settings provided to update")
             return
 
@@ -434,7 +466,8 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
             discharge_end_time=discharge_end_time,
             charge_start_time=charge_start_time,
             charge_end_time=charge_end_time,
-            minimum_soc=minimum_soc
+            minimum_soc=minimum_soc,
+            charge_cap=charge_cap
         )
         
         if success:
@@ -487,6 +520,15 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         handle_set_minimum_soc,
         schema=vol.Schema({
             vol.Required(ATTR_MINIMUM_SOC): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
+        })
+    )
+    
+    hass.services.async_register(
+        DOMAIN, 
+        SERVICE_SET_CHARGE_CAP,
+        handle_set_charge_cap,
+        schema=vol.Schema({
+            vol.Required(ATTR_CHARGE_CAP): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
         })
     )
     
