@@ -604,17 +604,17 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
                 
                 # Return the appropriate value based on the attribute
                 if self._attribute == "timeDisf1":
-                    return settings.get("timeDisf1")
+                    return getattr(settings, "time_disf1a", None)
                 elif self._attribute == "timeDise1":
-                    return settings.get("timeDise1")
+                    return getattr(settings, "time_dise1a", None)
                 elif self._attribute == "timeChaf1":
-                    return settings.get("timeChaf1")
+                    return getattr(settings, "time_chaf1a", None)
                 elif self._attribute == "timeChae1":
-                    return settings.get("timeChae1")
+                    return getattr(settings, "time_chae1a", None)
                 elif self._attribute == "batUseCap":
-                    return settings.get("batUseCap")
+                    return getattr(settings, "bat_use_cap", None)
                 elif self._attribute == "batHighCap":
-                    return settings.get("batHighCap")
+                    return getattr(settings, "bat_high_cap", None)
                     
             return None
         except Exception as ex:
@@ -638,10 +638,10 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
             if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
                 settings = client.api_client._settings_cache
                 return {
-                    "last_updated": settings.get("last_updated", "Unknown"),
-                    "grid_charge": settings.get("gridCharge", None),
-                    "ctr_dis": settings.get("ctrDis", None),
-                    "bat_high_cap": settings.get("batHighCap", None)
+                    "last_updated": getattr(settings, "last_updated", "Unknown"),
+                    "grid_charge": getattr(settings, "grid_charge", None),
+                    "ctr_dis": getattr(settings, "ctr_dis", None),
+                    "bat_high_cap": getattr(settings, "bat_high_cap", None)
                 }
         except Exception:
             pass
