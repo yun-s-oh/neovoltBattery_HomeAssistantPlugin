@@ -29,12 +29,6 @@ from .const import (
     SENSOR_TOTAL_HOUSE_CONSUMPTION,
     SENSOR_GRID_BATTERY_CHARGE,
     SENSOR_GRID_POWER_CONSUMPTION,
-    SENSOR_DISCHARGE_START,
-    SENSOR_DISCHARGE_END,
-    SENSOR_CHARGE_START,
-    SENSOR_CHARGE_END,
-    SENSOR_MIN_SOC,
-    SENSOR_CHARGE_CAP,
     SENSOR_PV_GENERATED_TODAY,
     SENSOR_CONSUMED_TODAY,
     SENSOR_FEED_IN_TODAY,
@@ -205,69 +199,6 @@ async def async_setup_entry(
         ),
     ]
     
-    # Define battery settings sensors
-    battery_settings_sensors = [
-        ByteWattBatterySettingsSensor(
-            coordinator, 
-            entry, 
-            SENSOR_DISCHARGE_START, 
-            "Discharge Start Time", 
-            "timestamp", 
-            "timeDisf1", 
-            "", 
-            "mdi:battery-minus"
-        ),
-        ByteWattBatterySettingsSensor(
-            coordinator, 
-            entry, 
-            SENSOR_DISCHARGE_END, 
-            "Discharge End Time", 
-            "timestamp", 
-            "timeDise1", 
-            "", 
-            "mdi:battery-minus-outline"
-        ),
-        ByteWattBatterySettingsSensor(
-            coordinator, 
-            entry, 
-            SENSOR_CHARGE_START, 
-            "Charge Start Time", 
-            "timestamp", 
-            "timeChaf1", 
-            "", 
-            "mdi:battery-plus"
-        ),
-        ByteWattBatterySettingsSensor(
-            coordinator, 
-            entry, 
-            SENSOR_CHARGE_END, 
-            "Charge End Time", 
-            "timestamp", 
-            "timeChae1", 
-            "", 
-            "mdi:battery-plus-outline"
-        ),
-        ByteWattBatterySettingsSensor(
-            coordinator, 
-            entry, 
-            SENSOR_MIN_SOC, 
-            "Minimum SOC", 
-            "battery", 
-            "batUseCap", 
-            "%", 
-            "mdi:battery-low"
-        ),
-        ByteWattBatterySettingsSensor(
-            coordinator, 
-            entry, 
-            SENSOR_CHARGE_CAP, 
-            "Battery Charge Cap", 
-            "battery", 
-            "batHighCap", 
-            "%", 
-            "mdi:battery-high"
-        ),
-    ]
     
     # Define daily stats sensors
     daily_stats_sensors = [
@@ -373,7 +304,7 @@ async def async_setup_entry(
         ),
     ]
     
-    async_add_entities(soc_sensors + grid_sensors + battery_settings_sensors + daily_stats_sensors)
+    async_add_entities(soc_sensors + grid_sensors + daily_stats_sensors)
 
 
 class ByteWattSensor(CoordinatorEntity, SensorEntity):
@@ -557,88 +488,3 @@ class ByteWattLastUpdateSensor(ByteWattSensor):
         return hasattr(self.coordinator, '_last_successful_update') and self.coordinator._last_successful_update is not None
 
 
-class ByteWattBatterySettingsSensor(ByteWattSensor):
-    """Representation of a Byte-Watt Battery Settings Sensor."""
-    
-    def __init__(
-        self,
-        coordinator,
-        config_entry,
-        sensor_type,
-        name,
-        device_class,
-        attribute,
-        unit,
-        icon,
-        entity_category=None,
-    ):
-        """Initialize the sensor with settings data."""
-        super().__init__(
-            coordinator, 
-            config_entry, 
-            sensor_type, 
-            name, 
-            device_class, 
-            attribute, 
-            unit, 
-            icon,
-            entity_category
-        )
-        # Initialize directly here to avoid attribute access errors
-        # Settings cache is managed by the api_client, no need to initialize here
-
-    @property
-    def native_value(self):
-        """Return the state of the sensor."""
-        try:
-            # Get settings from the client's settings cache
-            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
-                settings = client.api_client._settings_cache
-                
-                # Return the appropriate value based on the attribute
-                if self._attribute == "timeDisf1":
-                    return getattr(settings, "time_disf1a", None)
-                elif self._attribute == "timeDise1":
-                    return getattr(settings, "time_dise1a", None)
-                elif self._attribute == "timeChaf1":
-                    return getattr(settings, "time_chaf1a", None)
-                elif self._attribute == "timeChae1":
-                    return getattr(settings, "time_chae1a", None)
-                elif self._attribute == "batUseCap":
-                    return getattr(settings, "bat_use_cap", None)
-                elif self._attribute == "batHighCap":
-                    return getattr(settings, "bat_high_cap", None)
-            else:
-                _LOGGER.debug(f"No battery settings cache available for {self._attr_name}")
-                    
-            return None
-        except Exception as ex:
-            _LOGGER.error(f"Error getting battery settings value for {self._attr_name}: {ex}")
-            return None
-    
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        try:
-            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            return hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache is not None
-        except Exception:
-            return False
-    
-    @property
-    def extra_state_attributes(self) -> Dict[str, Any]:
-        """Return the state attributes."""
-        try:
-            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
-                settings = client.api_client._settings_cache
-                return {
-                    "last_updated": getattr(settings, "last_updated", "Unknown"),
-                    "grid_charge": getattr(settings, "grid_charge", None),
-                    "ctr_dis": getattr(settings, "ctr_dis", None),
-                    "bat_high_cap": getattr(settings, "bat_high_cap", None)
-                }
-        except Exception:
-            pass
-        return {}
