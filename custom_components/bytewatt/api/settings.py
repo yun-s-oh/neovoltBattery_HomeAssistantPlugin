@@ -79,6 +79,45 @@ class BatterySettingsAPI:
         
         return discharge_start, discharge_end, charge_start, charge_end, min_soc, max_charge_cap
     
+    def validate_boolean_setting(self, value: any, setting_name: str) -> int:
+        """
+        Validate boolean setting input and convert to API integer format (0/1).
+        
+        Args:
+            value: Boolean value to validate (can be bool, int, or string)
+            setting_name: Name of the setting for logging purposes
+            
+        Returns:
+            0 or 1 for API, or None if invalid
+        """
+        if value is None:
+            return None
+            
+        try:
+            # Handle different input types
+            if isinstance(value, bool):
+                return 1 if value else 0
+            elif isinstance(value, int):
+                if value in [0, 1]:
+                    return value
+                else:
+                    _LOGGER.error(f"{setting_name} must be 0 or 1, got {value}")
+                    return None
+            elif isinstance(value, str):
+                if value.lower() in ['true', '1', 'on', 'enabled']:
+                    return 1
+                elif value.lower() in ['false', '0', 'off', 'disabled']:
+                    return 0
+                else:
+                    _LOGGER.error(f"Invalid {setting_name} value: {value}")
+                    return None
+            else:
+                _LOGGER.error(f"Invalid {setting_name} type: {type(value)}")
+                return None
+        except Exception as ex:
+            _LOGGER.error(f"Error validating {setting_name}: {ex}")
+            return None
+    
     async def fetch_current_settings(self, max_retries: int = 3, retry_delay: int = 1) -> Optional[BatterySettings]:
         """
         Fetch current battery settings directly from the API using new endpoint.
@@ -165,6 +204,8 @@ class BatterySettingsAPI:
                               charge_end_time=None,
                               minimum_soc=None,
                               charge_cap=None,
+                              discharge_time_control=None,
+                              grid_charging=None,
                               max_retries: int = 5, 
                               retry_delay: int = 1) -> bool:
         """
@@ -177,6 +218,8 @@ class BatterySettingsAPI:
             charge_end_time: Time to end battery charging (format HH:MM)
             minimum_soc: Minimum state of charge percentage to maintain (1-100)
             charge_cap: Maximum charge cap percentage (1-100)
+            discharge_time_control: Enable/disable discharge time control (bool)
+            grid_charging: Enable/disable grid charging (bool)
             max_retries: Maximum number of retry attempts
             retry_delay: Delay between retries in seconds
             
@@ -188,9 +231,14 @@ class BatterySettingsAPI:
             discharge_start_time, discharge_end_time, charge_start_time, charge_end_time, minimum_soc, charge_cap
         )
         
+        # Validate boolean settings
+        ctr_dis_value = self.validate_boolean_setting(discharge_time_control, "discharge_time_control")
+        grid_charge_value = self.validate_boolean_setting(grid_charging, "grid_charging")
+        
         # Check if any changes were made
         if (discharge_start is None and discharge_end is None and 
-            charge_start is None and charge_end is None and min_soc is None and max_charge_cap is None):
+            charge_start is None and charge_end is None and min_soc is None and max_charge_cap is None and
+            ctr_dis_value is None and grid_charge_value is None):
             _LOGGER.warning("No valid battery settings provided, nothing to update")
             return False
         
@@ -224,6 +272,14 @@ class BatterySettingsAPI:
         if max_charge_cap is not None:
             settings.bat_high_cap = str(max_charge_cap)
             _LOGGER.debug(f"Updating charge cap to {max_charge_cap}%")
+        
+        if ctr_dis_value is not None:
+            settings.ctr_dis = ctr_dis_value
+            _LOGGER.debug(f"Updating discharge time control to {ctr_dis_value} ({'enabled' if ctr_dis_value else 'disabled'})")
+        
+        if grid_charge_value is not None:
+            settings.grid_charge = grid_charge_value
+            _LOGGER.debug(f"Updating grid charging to {grid_charge_value} ({'enabled' if grid_charge_value else 'disabled'})")
         
         # Send the updated settings to the server
         return await self._send_battery_settings(settings, max_retries, retry_delay)

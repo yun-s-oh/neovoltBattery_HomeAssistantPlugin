@@ -51,7 +51,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "number", "time"]
+PLATFORMS = ["sensor", "number", "time", "switch"]
 
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Byte-Watt component."""
