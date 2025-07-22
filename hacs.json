@@ -1,6 +1,8 @@
 {
   "name": "Byte-Watt Battery Monitor",
+  "description": "Home Assistant integration for monitoring and controlling ByteWatt/Neovolt battery systems with real-time power flow data and battery control capabilities",
   "content_in_root": false,
   "render_readme": true,
-  "homeassistant": "2023.1.0"
+  "homeassistant": "2023.1.0",
+  "zip_release": true
 }
