@@ -38,7 +38,9 @@ class ByteWattClient:
                                     charge_start_time: str = None,
                                     charge_end_time: str = None,
                                     minimum_soc: int = None,
-                                    charge_cap: int = None) -> bool:
+                                    charge_cap: int = None,
+                                    discharge_time_control: bool = None,
+                                    grid_charging: bool = None) -> bool:
         """Update battery settings."""
         return await self.api_client.async_update_battery_settings(
             discharge_start_time=discharge_start_time,
@@ -46,5 +48,7 @@ class ByteWattClient:
             charge_start_time=charge_start_time,
             charge_end_time=charge_end_time,
             minimum_soc=minimum_soc,
-            charge_cap=charge_cap
+            charge_cap=charge_cap,
+            discharge_time_control=discharge_time_control,
+            grid_charging=grid_charging
         )

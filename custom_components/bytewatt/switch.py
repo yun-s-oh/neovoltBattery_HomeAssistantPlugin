@@ -122,14 +122,8 @@ class ByteWattDischargeControlSwitch(ByteWattSwitchEntity):
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
             
-            # Get current settings to preserve other values
-            current_settings = await client.api_client.get_current_settings()
-            
-            # Update only the ctr_dis field
-            current_settings.ctr_dis = 1 if state else 0
-            
-            # Send updated settings
-            success = await client.api_client._send_battery_settings(current_settings)
+            # Use the client's update method with the discharge_time_control parameter
+            success = await client.update_battery_settings(discharge_time_control=state)
             
             if success:
                 action = "enabled" if state else "disabled"
@@ -165,14 +159,8 @@ class ByteWattGridChargeSwitch(ByteWattSwitchEntity):
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
             
-            # Get current settings to preserve other values
-            current_settings = await client.api_client.get_current_settings()
-            
-            # Update only the grid_charge field
-            current_settings.grid_charge = 1 if state else 0
-            
-            # Send updated settings
-            success = await client.api_client._send_battery_settings(current_settings)
+            # Use the client's update method with the grid_charging parameter
+            success = await client.update_battery_settings(grid_charging=state)
             
             if success:
                 action = "enabled" if state else "disabled"

@@ -476,7 +476,7 @@ class ByteWattLastUpdateSensor(ByteWattSensor):
         """Return the last update time based on coordinator's last successful update."""
         try:
             if hasattr(self.coordinator, '_last_successful_update') and self.coordinator._last_successful_update:
-                return self.coordinator._last_successful_update.isoformat()
+                return self.coordinator._last_successful_update
             return None
         except Exception as ex:
             _LOGGER.error(f"Error getting last update time: {ex}")
