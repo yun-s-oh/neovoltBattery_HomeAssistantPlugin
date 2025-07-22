@@ -19,7 +19,6 @@ class ByteWattClient:
         self.username = username
         self.password = password
         self.api_client = NeovoltClient(hass, username, password)
-        self._settings_cache = {}
     
     async def initialize(self) -> bool:
         """Initialize or re-initialize the client."""

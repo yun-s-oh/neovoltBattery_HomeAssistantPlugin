@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import time
+from datetime import datetime
 from typing import Optional, Dict, Any, Tuple
 
 from ..models import BatterySettings
@@ -108,12 +109,13 @@ class BatterySettingsAPI:
                 
             # Success! Extract the settings
             settings = BatterySettings.from_api_response(response["data"])
+            settings.last_updated = datetime.now().isoformat()
             
             # Update our settings cache
             self._settings_cache = settings
             self._settings_loaded = True
             
-            _LOGGER.info(f"Successfully fetched current settings from new API")
+            _LOGGER.debug(f"Successfully fetched current settings from new API")
             _LOGGER.debug(f"Current settings: " +
                          f"Charge: {settings.time_chaf1a}-{settings.time_chae1a}, " +
                          f"Discharge: {settings.time_disf1a}-{settings.time_dise1a}, " +
@@ -253,13 +255,13 @@ class BatterySettingsAPI:
                 
             # Check for successful response based on new API format
             if response.get("code") == 200 and response.get("msg") == "Success":
-                _LOGGER.info(f"Successfully updated battery settings using new API")
+                _LOGGER.debug(f"Successfully updated battery settings using new API")
                 # Update settings cache with the successfully sent settings
                 self._settings_cache = settings
                 self._settings_loaded = True
                 
                 # Log the updated settings
-                _LOGGER.info(f"Updated settings: " +
+                _LOGGER.debug(f"Updated settings: " +
                             f"Charge: {settings.time_chaf1a}-{settings.time_chae1a}, " +
                             f"Discharge: {settings.time_disf1a}-{settings.time_dise1a}, " +
                             f"Min SOC: {settings.bat_use_cap}%")

@@ -68,6 +68,7 @@ class BatterySettings:
     time_disf2a: str = "06:00"
     time_dise2a: str = "10:00"
     bat_high_cap: str = "100"
+    last_updated: Optional[str] = None
     
     # Weekend settings
     time_cha_fwe1a: str = "00:00"

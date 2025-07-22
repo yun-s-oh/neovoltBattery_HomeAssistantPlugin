@@ -279,7 +279,7 @@ class NeovoltClient:
                 "endDate": end_date
             }
             
-            _LOGGER.info("Fetching energy statistics from: %s with params: %s", stats_url, stats_params)
+            _LOGGER.debug("Fetching energy statistics from: %s with params: %s", stats_url, stats_params)
             async with asyncio.timeout(DEFAULT_TIMEOUT):
                 # Add try/except for stats request to avoid breaking the whole function if stats fails
                 try:
@@ -296,11 +296,11 @@ class NeovoltClient:
                 
                 if stats_response.status == 200:
                     stats_result = await stats_response.json()
-                    _LOGGER.info("Energy statistics response: %s", stats_result)
+                    _LOGGER.debug("Energy statistics response: %s", stats_result)
                     
                     if stats_result.get("code") == 200 or stats_result.get("code") == 0:
                         stats_data = stats_result.get("data", {})
-                        _LOGGER.info("Energy statistics data fields: %s", list(stats_data.keys()) if stats_data else "No data")
+                        _LOGGER.debug("Energy statistics data fields: %s", list(stats_data.keys()) if stats_data else "No data")
                         
                         # Map the statistics data to the grid sensor names
                         if stats_data:
@@ -342,7 +342,7 @@ class NeovoltClient:
                 "tday": today_date
             }
             
-            _LOGGER.info("Fetching today's stats from: %s with params: %s", today_url, today_params)
+            _LOGGER.debug("Fetching today's stats from: %s with params: %s", today_url, today_params)
             
             async with asyncio.timeout(DEFAULT_TIMEOUT):
                 try:
@@ -358,11 +358,11 @@ class NeovoltClient:
                 
                 if today_response.status == 200:
                     today_result = await today_response.json()
-                    _LOGGER.info("Today's stats response: %s", today_result)
+                    _LOGGER.debug("Today's stats response: %s", today_result)
                     
                     if today_result.get("code") == 200:
                         today_data = today_result.get("data", {})
-                        _LOGGER.info("Today's stats data fields: %s", list(today_data.keys()) if today_data else "No data")
+                        _LOGGER.debug("Today's stats data fields: %s", list(today_data.keys()) if today_data else "No data")
                         
                         # Map today's stats to battery data
                         if today_data:

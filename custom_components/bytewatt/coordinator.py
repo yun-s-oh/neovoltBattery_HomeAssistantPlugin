@@ -139,7 +139,6 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     
     async def _async_update_data(self):
         """Update data via library with improved error handling."""
-        _LOGGER.debug("Starting _async_update_data method")
         try:
             # Store datetime.now() in a variable for reuse
             current_time = datetime.now()
@@ -173,7 +172,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             try:
                 await self.client.api_client.async_get_battery_settings()
             except Exception as ex:
-                _LOGGER.debug(f"Failed to fetch battery settings: {ex}")
+                _LOGGER.warning(f"Failed to fetch battery settings: {ex}")
             
             # If we got battery data, update our cached version and last successful time
             if battery_data:

@@ -585,13 +585,7 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
             entity_category
         )
         # Initialize directly here to avoid attribute access errors
-        try:
-            # Make sure the client we'll access has the attribute to avoid errors
-            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if not hasattr(client, "_settings_cache"):
-                client._settings_cache = {}
-        except Exception as ex:
-            _LOGGER.debug(f"Error initializing settings cache: {ex}")
+        # Settings cache is managed by the api_client, no need to initialize here
 
     @property
     def native_value(self):
@@ -615,6 +609,8 @@ class ByteWattBatterySettingsSensor(ByteWattSensor):
                     return getattr(settings, "bat_use_cap", None)
                 elif self._attribute == "batHighCap":
                     return getattr(settings, "bat_high_cap", None)
+            else:
+                _LOGGER.debug(f"No battery settings cache available for {self._attr_name}")
                     
             return None
         except Exception as ex:

@@ -51,7 +51,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "number", "time"]
 
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Byte-Watt component."""
@@ -278,7 +278,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         )
         
         if success:
-            _LOGGER.info(f"Successfully set discharge end time to {end_discharge}")
+            _LOGGER.debug(f"Successfully set discharge end time to {end_discharge}")
         else:
             _LOGGER.error(f"Failed to set discharge end time to {end_discharge}")
         
@@ -308,7 +308,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         )
         
         if success:
-            _LOGGER.info(f"Successfully set discharge start time to {start_discharge}")
+            _LOGGER.debug(f"Successfully set discharge start time to {start_discharge}")
         else:
             _LOGGER.error(f"Failed to set discharge start time to {start_discharge}")
         
@@ -338,7 +338,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         )
         
         if success:
-            _LOGGER.info(f"Successfully set charge start time to {start_charge}")
+            _LOGGER.debug(f"Successfully set charge start time to {start_charge}")
         else:
             _LOGGER.error(f"Failed to set charge start time to {start_charge}")
         
@@ -368,7 +368,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         )
         
         if success:
-            _LOGGER.info(f"Successfully set charge end time to {end_charge}")
+            _LOGGER.debug(f"Successfully set charge end time to {end_charge}")
         else:
             _LOGGER.error(f"Failed to set charge end time to {end_charge}")
         
@@ -398,7 +398,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         )
         
         if success:
-            _LOGGER.info(f"Successfully set minimum SOC to {minimum_soc}%")
+            _LOGGER.debug(f"Successfully set minimum SOC to {minimum_soc}%")
         else:
             _LOGGER.error(f"Failed to set minimum SOC to {minimum_soc}%")
         
@@ -427,7 +427,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
         )
         
         if success:
-            _LOGGER.info(f"Successfully set charge cap to {charge_cap}%")
+            _LOGGER.debug(f"Successfully set charge cap to {charge_cap}%")
         else:
             _LOGGER.error(f"Failed to set charge cap to {charge_cap}%")
         
