@@ -34,6 +34,8 @@ class NeovoltClient:
         self.session = async_get_clientsession(hass)
         self.token: Optional[str] = None
         self._settings_cache = None
+        self._fresh_settings_update = False
+        self._settings_update_time = None
     
     async def async_login(self) -> bool:
         """Login to the Neovolt API using encrypted password."""
@@ -466,17 +468,73 @@ class NeovoltClient:
                 grid_charging
             )
             
-            # If successful, update our cache with the settings that were successfully sent
+            # If successful, set fresh update flag and schedule auto-fetch from API
             if result:
-                # Get the updated settings from the settings API cache
-                self._settings_cache = settings_api._settings_cache
-                _LOGGER.debug("Updated NeovoltClient cache with new settings after successful API update")
+                # Set fresh update flag to prevent coordinator from overwriting
+                self._fresh_settings_update = True
+                self._settings_update_time = dt_util.utcnow()
+                _LOGGER.debug("Settings update successful, scheduling auto-fetch from API in 3 seconds")
+                
+                # Schedule auto-fetch with delay to allow server propagation
+                asyncio.create_task(self._auto_fetch_updated_settings())
             
             return result
             
         except Exception as error:
             _LOGGER.error("Error updating battery settings: %s", error)
             return False
+    
+    async def _auto_fetch_updated_settings(self):
+        """Auto-fetch updated settings from API after successful update with delay."""
+        try:
+            # Wait 3 seconds to allow server propagation
+            await asyncio.sleep(3)
+            
+            _LOGGER.debug("Auto-fetching updated settings from API after successful update")
+            
+            # Fetch fresh settings from API
+            from .settings import BatterySettingsAPI
+            settings_api = BatterySettingsAPI(self)
+            settings = await settings_api.fetch_current_settings()
+            
+            if settings:
+                self._settings_cache = settings
+                _LOGGER.debug("Auto-fetch successful: updated cache with fresh settings from API")
+            else:
+                _LOGGER.warning("Auto-fetch failed: could not get updated settings from API")
+                
+        except Exception as ex:
+            _LOGGER.error(f"Error during auto-fetch of updated settings: {ex}")
+        finally:
+            # Clear fresh update flag after auto-fetch attempt (success or failure)
+            # This ensures coordinator can fetch settings again after some time
+            try:
+                # Clear flag after 30 more seconds as safety net
+                await asyncio.sleep(30)
+                self._fresh_settings_update = False
+                _LOGGER.debug("Cleared fresh_settings_update flag after 30 second safety timeout")
+            except asyncio.CancelledError:
+                # Handle task cancellation gracefully
+                self._fresh_settings_update = False
+                _LOGGER.debug("Auto-fetch task cancelled, cleared fresh_settings_update flag")
+            except Exception as ex:
+                _LOGGER.error(f"Error during flag cleanup: {ex}")
+                self._fresh_settings_update = False
+    
+    def has_fresh_settings_update(self) -> bool:
+        """Check if we recently updated settings and should skip coordinator fetch."""
+        if not self._fresh_settings_update:
+            return False
+            
+        # Check if update was recent (within last 60 seconds)
+        if self._settings_update_time:
+            time_diff = dt_util.utcnow() - self._settings_update_time
+            if time_diff.total_seconds() > 60:
+                self._fresh_settings_update = False
+                _LOGGER.debug("Fresh settings update flag expired after 60 seconds")
+                return False
+                
+        return True
     
     async def _async_get(self, endpoint: str) -> Optional[Dict[str, Any]]:
         """Make an async GET request."""

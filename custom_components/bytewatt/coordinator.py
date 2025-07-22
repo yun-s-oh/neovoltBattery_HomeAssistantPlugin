@@ -140,8 +140,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Update data via library with improved error handling."""
         try:
-            # Store datetime.now() in a variable for reuse
-            current_time = datetime.now()
+            # Store current time as timezone-aware datetime for reuse
+            current_time = dt_util.utcnow()
             # Check if circuit breaker allows execution
             if not self.circuit_breaker.can_execute():
                 _LOGGER.warning(
@@ -169,8 +169,12 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 battery_data = await self.client.get_battery_data()
             
             # Get battery settings (don't fail if this fails)
+            # Skip if we recently updated settings to prevent cache race condition
             try:
-                await self.client.api_client.async_get_battery_settings()
+                if self.client.api_client.has_fresh_settings_update():
+                    _LOGGER.debug("Skipping battery settings fetch - fresh update in progress")
+                else:
+                    await self.client.api_client.async_get_battery_settings()
             except Exception as ex:
                 _LOGGER.warning(f"Failed to fetch battery settings: {ex}")
             

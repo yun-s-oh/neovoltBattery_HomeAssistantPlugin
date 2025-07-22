@@ -24,8 +24,8 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
 
     entities = [
-        ByteWattMinimumSOCNumber(coordinator, config_entry),
         ByteWattChargeCapNumber(coordinator, config_entry),
+        ByteWattMinimumSOCNumber(coordinator, config_entry),
     ]
 
     async_add_entities(entities)

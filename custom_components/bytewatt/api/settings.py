@@ -5,6 +5,8 @@ import time
 from datetime import datetime
 from typing import Optional, Dict, Any, Tuple
 
+from homeassistant.util import dt as dt_util
+
 from ..models import BatterySettings
 from ..utilities.time_utils import sanitize_time_format
 from typing import TYPE_CHECKING
@@ -148,7 +150,7 @@ class BatterySettingsAPI:
                 
             # Success! Extract the settings
             settings = BatterySettings.from_api_response(response["data"])
-            settings.last_updated = datetime.now().isoformat()
+            settings.last_updated = dt_util.utcnow().isoformat()
             
             # Update our settings cache
             self._settings_cache = settings
