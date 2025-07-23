@@ -179,6 +179,12 @@ class NeovoltClient:
                 result = await response.json()
                 
                 if result.get("code") != 0 and result.get("code") != 200:
+                    # Check for session expiry
+                    if result.get("code") == 6069:
+                        _LOGGER.warning("Session expired (code 6069), attempting to re-login")
+                        if await self.async_login():
+                            return await self.async_get_device_list()
+                    
                     _LOGGER.error(
                         "Failed to get device list with code %s: %s", 
                         result.get("code"), 
@@ -246,6 +252,12 @@ class NeovoltClient:
                 result = await response.json()
                 
                 if result.get("code") != 0 and result.get("code") != 200:
+                    # Check for session expiry
+                    if result.get("code") == 6069:
+                        _LOGGER.warning("Session expired (code 6069), attempting to re-login")
+                        if await self.async_login():
+                            return await self.async_get_battery_data(station_id)
+                    
                     _LOGGER.error(
                         "Failed to get battery power data with code %s: %s", 
                         result.get("code"), 
@@ -322,6 +334,11 @@ class NeovoltClient:
                             battery_data["Grid_Based_Battery_Charge"] = stats_data.get("egridCharge")
                             # Grid power consumption
                             battery_data["Grid_Power_Consumption"] = stats_data.get("einput")
+                    elif stats_result.get("code") == 6069:
+                        # Session expired while fetching statistics
+                        _LOGGER.warning("Session expired (code 6069) during statistics fetch, attempting to re-login")
+                        if await self.async_login():
+                            return await self.async_get_battery_data(station_id)
                     else:
                         _LOGGER.error(
                             "Failed to get energy statistics with code %s: %s", 
@@ -395,6 +412,11 @@ class NeovoltClient:
                             # Financial (optional)
                             battery_data["Today_Income"] = today_data.get("todayIncome")
                             battery_data["Total_Income"] = today_data.get("totalIncome")
+                    elif today_result.get("code") == 6069:
+                        # Session expired while fetching today's stats
+                        _LOGGER.warning("Session expired (code 6069) during today's stats fetch, attempting to re-login")
+                        if await self.async_login():
+                            return await self.async_get_battery_data(station_id)
                     else:
                         _LOGGER.error(
                             "Failed to get today's stats with code %s: %s", 

@@ -143,6 +143,24 @@ class BatterySettingsAPI:
                 continue
                 
             if "data" not in response or "code" not in response or response["code"] != 200:
+                # Check for session expiry
+                if response.get("code") == 6069:
+                    _LOGGER.warning("Session expired (code 6069), attempting to re-login")
+                    if await self.api_client.async_login():
+                        # Retry immediately after successful re-login
+                        response = await self.api_client._async_get(endpoint)
+                        if response and "data" in response and response.get("code") == 200:
+                            # Success! Extract the settings
+                            settings = BatterySettings.from_api_response(response["data"])
+                            settings.last_updated = dt_util.utcnow().isoformat()
+                            
+                            # Update our settings cache
+                            self._settings_cache = settings
+                            self._settings_loaded = True
+                            
+                            _LOGGER.debug(f"Successfully fetched current settings after re-login")
+                            return settings
+                
                 _LOGGER.error(f"Unexpected response format (attempt {attempt+1}/{max_retries}): {response}")
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
@@ -327,6 +345,23 @@ class BatterySettingsAPI:
             elif response.get("code") == 9007:
                 _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {response.get('msg', 'Unknown error')}")
                 # Server is reporting a network issue, let's retry
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                continue
+            elif response.get("code") == 6069:
+                # Session expired during settings update
+                _LOGGER.warning("Session expired (code 6069), attempting to re-login")
+                if await self.api_client.async_login():
+                    # Retry immediately after successful re-login
+                    response = await self.api_client._async_put(endpoint, settings.to_dict())
+                    if response and response.get("code") == 200 and response.get("msg") == "Success":
+                        _LOGGER.debug(f"Successfully updated battery settings after re-login")
+                        # Update settings cache with the successfully sent settings
+                        self._settings_cache = settings
+                        self._settings_loaded = True
+                        return True
+                
+                # If re-login or retry failed, continue to next attempt
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
                 continue

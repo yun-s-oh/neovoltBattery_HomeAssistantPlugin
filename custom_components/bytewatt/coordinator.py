@@ -306,7 +306,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         # Immediately run a check if a time is configured
         if hasattr(self, '_auto_reconnect_time') and self._auto_reconnect_time:
             try:
-                current_time = datetime.now().time()
+                current_time = dt_util.utcnow().time()
                 reconnect_time = dt_util.parse_time(self._auto_reconnect_time)
                 
                 if reconnect_time:
@@ -319,7 +319,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     @callback
     async def _handle_auto_reconnect(self, _now: Optional[datetime] = None) -> None:
         """Handle scheduled automatic reconnection."""
-        current_time = datetime.now()
+        current_time = dt_util.utcnow()
         _LOGGER.info(f"Executing scheduled auto reconnect at {current_time.strftime('%H:%M:%S')}")
         self.diagnostic_service.log_diagnostic("auto_reconnect", {
             "trigger": "scheduled",
@@ -357,7 +357,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         if self._recovery_in_progress:
             return
         
-        current_time = datetime.now()
+        current_time = dt_util.utcnow()
         
         # Log heartbeat check in diagnostics
         self.diagnostic_service.log_diagnostic("heartbeat_check", {
@@ -414,7 +414,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.warning(f"Performing ByteWatt integration {recovery_type} recovery (attempt {self._recovery_attempts})")
         
         # Record recovery attempt in diagnostics
-        recovery_timestamp = datetime.now()
+        recovery_timestamp = dt_util.utcnow()
         self.diagnostic_service.log_diagnostic("recovery_attempt", {
             "attempt": self._recovery_attempts,
             "type": recovery_type,
@@ -434,16 +434,20 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.error(f"Could not create recovery notification: {e}")
         
         try:
-            # Step 1: Network diagnostics (if diagnostics enabled)
+            # Step 1: Reset circuit breaker to allow recovery attempts
+            _LOGGER.debug("Resetting circuit breaker for recovery")
+            self.circuit_breaker.reset()
+            
+            # Step 2: Network diagnostics (if diagnostics enabled)
             if self.diagnostic_service.diagnostics_enabled:
                 network_status = await self.hass.async_add_executor_job(self._check_network)
                 self.diagnostic_service.log_diagnostic("network_check", network_status)
             
-            # Step 2: Reset client state
+            # Step 3: Reset client state
             with self._timed_operation("reset_client"):
                 await self._reset_client()
             
-            # Step 3: Force immediate data refresh
+            # Step 4: Force immediate data refresh
             with self._timed_operation("refresh_data"):
                 await self.async_refresh()
             
@@ -451,7 +455,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.info("ByteWatt integration recovery completed successfully")
             
             # Record success in diagnostics
-            success_timestamp = datetime.now()
+            success_timestamp = dt_util.utcnow()
             self.diagnostic_service.log_diagnostic("recovery_result", {
                 "success": True,
                 "timestamp": success_timestamp.isoformat()
@@ -472,7 +476,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"ByteWatt recovery failed: {err}")
             
             # Record failure in diagnostics
-            failure_timestamp = datetime.now()
+            failure_timestamp = dt_util.utcnow()
             self.diagnostic_service.log_diagnostic("recovery_result", {
                 "success": False,
                 "error": str(err),
@@ -510,7 +514,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     
     def _check_network(self) -> Dict[str, Any]:
         """Check network connectivity to ByteWatt API."""
-        network_check_time = datetime.now()
+        network_check_time = dt_util.utcnow()
         result = {
             "dns_check": {},
             "ping_check": {},
@@ -574,7 +578,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # Record diagnostics
             self.diagnostic_service.log_diagnostic("client_reset", {
                 "success": True,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": dt_util.utcnow().isoformat()
             })
         except Exception as err:
             _LOGGER.error(f"Error resetting ByteWatt client: {err}")
@@ -584,14 +588,14 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 "success": False,
                 "error": str(err),
                 "error_type": type(err).__name__,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": dt_util.utcnow().isoformat()
             })
             
             raise
     
     async def run_health_check(self) -> Dict[str, Any]:
         """Run a comprehensive health check on the ByteWatt integration."""
-        health_timestamp = datetime.now()
+        health_timestamp = dt_util.utcnow()
         health_result = {
             "timestamp": health_timestamp.isoformat(),
             "integration_id": self.entry_id,
