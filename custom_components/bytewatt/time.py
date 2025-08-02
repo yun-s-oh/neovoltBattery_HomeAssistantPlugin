@@ -10,7 +10,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_SERIAL_NUMBER
 from .coordinator import ByteWattDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,8 +49,12 @@ class ByteWattTimeEntity(CoordinatorEntity, TimeEntity):
         """Initialize the time entity."""
         super().__init__(coordinator)
         self._config_entry = config_entry
+        sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
         self._attr_name = name
-        self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}"
+        if sys_sn == "All":
+            self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}"
+        else:
+            self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
         self._attr_icon = icon
         self._attr_entity_category = EntityCategory.CONFIG
         self._attribute_name = attribute_name
@@ -58,9 +62,16 @@ class ByteWattTimeEntity(CoordinatorEntity, TimeEntity):
     @property
     def device_info(self):
         """Return device info."""
+        username = self._config_entry.data.get("username", "Unknown")
+        sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
+
+        device_name = f"Byte-Watt Battery ({username})"
+        if sys_sn != "All":
+            device_name += f" - {sys_sn}"
+
         return {
             "identifiers": {(DOMAIN, self._config_entry.entry_id)},
-            "name": "ByteWatt Battery System",
+            "name": device_name,
             "manufacturer": "ByteWatt",
             "model": "Battery Management System",
             "sw_version": "1.0.0",
