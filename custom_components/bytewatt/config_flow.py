@@ -62,7 +62,7 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self.user_input.update(user_input)
             return self.async_create_entry(
-                title=f"Byte-Watt ({self.user_input[CONF_USERNAME]})",
+                title=f"Byte-Watt ({self.user_input[CONF_USERNAME]}) - {self.user_input[CONF_SERIAL_NUMBER]}",
                 data=self.user_input,
             )
 
