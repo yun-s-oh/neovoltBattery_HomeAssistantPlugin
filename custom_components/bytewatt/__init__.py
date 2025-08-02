@@ -65,7 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Byte-Watt from a config entry."""
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
-    serial_number = entry.data[CONF_SERIAL_NUMBER]
+    serial_number = entry.data.get(CONF_SERIAL_NUMBER, "All")
 
     # Get all configuration options with defaults
     options = entry.options or {}
