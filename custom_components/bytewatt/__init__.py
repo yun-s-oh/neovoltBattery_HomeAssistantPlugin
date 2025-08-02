@@ -16,6 +16,8 @@ from .const import (
     CONF_USERNAME,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
+    CONF_SERIAL_NUMBER,
+    CONF_SYSTEM_ID,
     CONF_RECOVERY_ENABLED,
     CONF_HEARTBEAT_INTERVAL,
     CONF_MAX_DATA_AGE,
@@ -64,7 +66,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Byte-Watt from a config entry."""
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
-    
+    serial_number = entry.data.get(CONF_SERIAL_NUMBER, "All")
+    system_id = entry.data.get(CONF_SYSTEM_ID, "")
     # Get all configuration options with defaults
     options = entry.options or {}
     scan_interval = options.get(CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
@@ -80,11 +83,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         CONF_AUTO_RECONNECT_TIME: options.get(CONF_AUTO_RECONNECT_TIME, DEFAULT_AUTO_RECONNECT_TIME)
     }
 
-    client = ByteWattClient(hass, username, password)
+    client = ByteWattClient(hass, username, password, system_id)
 
     coordinator = ByteWattDataUpdateCoordinator(
         hass,
         client=client,
+        serial_number=serial_number,
+        system_id=system_id,
         scan_interval=scan_interval,
         entry_id=entry.entry_id,
         options=recovery_options

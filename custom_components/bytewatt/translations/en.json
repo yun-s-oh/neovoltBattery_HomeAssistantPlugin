@@ -9,10 +9,21 @@
           "password": "Password",
           "scan_interval": "Scan Interval (seconds)"
         }
+      },
+      "inverter": {
+        "title": "Select Inverter",
+        "description": "Choose the inverter you want to monitor. Select 'All' to monitor all inverters.",
+        "data": {
+          "serial_number": "Inverter"
+        }
       }
     },
     "error": {
       "auth": "Authentication failed. Please check your credentials."
+    },
+    "abort": {
+      "no_inverters": "No inverters found on your account. Please check your setup and try again.",
+      "no_inverters_left": "All inverters on your account are already configured."
     }
   },
   "options": {
