@@ -18,6 +18,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Byte-Watt."""
 
@@ -34,7 +35,9 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            self.client = ByteWattClient(self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD])
+            self.client = ByteWattClient(
+                self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
+            )
             success = await self.client.initialize()
 
             if success:
@@ -59,10 +62,24 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_inverter(self, user_input=None):
         """Handle the inverter selection step."""
+        configured_serials = [
+            entry.data.get(CONF_SERIAL_NUMBER)
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+        ]
+
         if user_input is not None:
+            serial_number = user_input[CONF_SERIAL_NUMBER]
+
+            if serial_number in configured_serials:
+                return self.async_abort(reason="already_configured")
+
             self.user_input.update(user_input)
+            title = (
+                f"Byte-Watt ({self.user_input[CONF_USERNAME]}) - "
+                f"{self.user_input.get(CONF_SERIAL_NUMBER, 'All')}"
+            )
             return self.async_create_entry(
-                title=f"Byte-Watt ({self.user_input[CONF_USERNAME]}) - {self.user_input.get(CONF_SERIAL_NUMBER, 'All')}",
+                title=title,
                 data=self.user_input,
             )
 
@@ -71,16 +88,26 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not inverters:
             return self.async_abort(reason="no_inverters")
 
-        inverter_choices = {"All": "All"}
+        inverter_choices = {}
+        if "All" not in configured_serials:
+            inverter_choices["All"] = "All"
+
         if inverters:
             for inverter in inverters:
-                inverter_choices[inverter['sysSn']] = inverter['sysSn']
+                if inverter['sysSn'] not in configured_serials:
+                    inverter_choices[inverter['sysSn']] = inverter['sysSn']
 
+        if not inverter_choices:
+            return self.async_abort(reason="no_inverters_left")
+
+        default_inverter = "All" if "All" in inverter_choices else next(iter(inverter_choices))
         return self.async_show_form(
             step_id="inverter",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_SERIAL_NUMBER, default="All"): vol.In(inverter_choices),
+                    vol.Required(CONF_SERIAL_NUMBER, default=default_inverter): vol.In(
+                        inverter_choices
+                    ),
                 }
             ),
         )

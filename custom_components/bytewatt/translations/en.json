@@ -22,7 +22,8 @@
       "auth": "Authentication failed. Please check your credentials."
     },
     "abort": {
-      "no_inverters": "No inverters found on your account. Please check your setup and try again."
+      "no_inverters": "No inverters found on your account. Please check your setup and try again.",
+      "no_inverters_left": "All inverters on your account are already configured."
     }
   },
   "options": {
