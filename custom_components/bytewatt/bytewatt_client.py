@@ -12,27 +12,31 @@ _LOGGER = logging.getLogger(__name__)
 
 class ByteWattClient:
     """Client for interacting with the Byte-Watt API."""
-    
+
     def __init__(self, hass: HomeAssistant, username: str, password: str):
         """Initialize with login credentials."""
         self.hass = hass
         self.username = username
         self.password = password
         self.api_client = NeovoltClient(hass, username, password)
-    
+
     async def initialize(self) -> bool:
         """Initialize or re-initialize the client."""
         return await self.api_client.async_login()
-    
+
     async def get_battery_data(self, station_id: str = None) -> Optional[Dict[str, Any]]:
         """Get battery data from the API."""
         return await self.api_client.async_get_battery_data(station_id)
-    
+
     async def get_device_list(self) -> Optional[Dict[str, Any]]:
         """Get list of devices from the API."""
         return await self.api_client.async_get_device_list()
-    
-    async def update_battery_settings(self, 
+
+    async def get_inverter_list(self) -> Optional[List[Dict[str, Any]]]:
+        """Get the list of inverters."""
+        return await self.api_client.async_get_inverter_list()
+
+    async def update_battery_settings(self,
                                     discharge_start_time: str = None,
                                     discharge_end_time: str = None,
                                     charge_start_time: str = None,

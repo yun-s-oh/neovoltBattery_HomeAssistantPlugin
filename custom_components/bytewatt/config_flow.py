@@ -4,13 +4,13 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv
 
 from .bytewatt_client import ByteWattClient
 from .const import (
-    DOMAIN, 
-    CONF_USERNAME, 
+    DOMAIN,
+    CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_SERIAL_NUMBER,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL
@@ -24,24 +24,25 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
 
+    def __init__(self):
+        """Initialize the config flow."""
+        self.client = None
+        self.user_input = {}
+
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         errors = {}
 
         if user_input is not None:
-            # Validate the credentials
-            client = ByteWattClient(self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD])
-            success = await client.initialize()
+            self.client = ByteWattClient(self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD])
+            success = await self.client.initialize()
 
             if success:
-                return self.async_create_entry(
-                    title=f"Byte-Watt ({user_input[CONF_USERNAME]})",
-                    data=user_input,
-                )
+                self.user_input = user_input
+                return await self.async_step_inverter()
             else:
                 errors["base"] = "auth"
 
-        # Show the form
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
@@ -54,6 +55,34 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_inverter(self, user_input=None):
+        """Handle the inverter selection step."""
+        if user_input is not None:
+            self.user_input.update(user_input)
+            return self.async_create_entry(
+                title=f"Byte-Watt ({self.user_input[CONF_USERNAME]})",
+                data=self.user_input,
+            )
+
+        inverters = await self.client.get_inverter_list()
+
+        if not inverters:
+            return self.async_abort(reason="no_inverters")
+
+        inverter_choices = {"All": "All"}
+        if inverters:
+            for inverter in inverters:
+                inverter_choices[inverter['sysSn']] = inverter['sysSn']
+
+        return self.async_show_form(
+            step_id="inverter",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_SERIAL_NUMBER, default="All"): vol.In(inverter_choices),
+                }
+            ),
         )
 
     @staticmethod

@@ -28,7 +28,7 @@ When stale data is detected for three consecutive checks, the system:
 
 The ByteWatt client now has methods to safely reset its state:
 
-- **Location**: `bytewatt_client.py` - `initialize()` method 
+- **Location**: `bytewatt_client.py` - `initialize()` method
 - **Purpose**: Creates a fresh API client with new session objects
 
 ### 4. Manual Recovery Service
@@ -59,7 +59,7 @@ automation:
     trigger:
       - platform: state
         entity_id: sensor.bytewatt_soc
-        for: 
+        for:
           minutes: 10
     action:
       - service: bytewatt.force_reconnect

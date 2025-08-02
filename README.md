@@ -53,7 +53,7 @@ The integration provides several services for controlling your battery:
 
 - `bytewatt.set_discharge_start_time`: Set when battery discharge begins
 - `bytewatt.set_discharge_time`: Set when battery discharge ends
-- `bytewatt.set_charge_start_time`: Set when battery charging begins  
+- `bytewatt.set_charge_start_time`: Set when battery charging begins
 - `bytewatt.set_charge_end_time`: Set when battery charging ends
 - `bytewatt.set_minimum_soc`: Set the minimum battery level to maintain
 - `bytewatt.update_battery_settings`: Update multiple settings at once
@@ -72,9 +72,9 @@ automation:
       service: bytewatt.update_battery_settings
       data:
         start_discharge: "17:00"
-        end_discharge: "22:00" 
+        end_discharge: "22:00"
         minimum_soc: 20
-        
+
   - alias: "Off-Peak Charging"
     trigger:
       platform: state
@@ -98,7 +98,7 @@ automation:
     - `pbat` → Battery Power (W)
     - `ppv` → PV Power (W)
     - `soc` → Battery Percentage (%)
-  
+
   - **Energy statistics metrics**:
     - `epvT` → Total Solar Generation (kWh)
     - `eout` → Total Feed In (kWh)
@@ -109,7 +109,7 @@ automation:
     - `eload` → Total House Consumption (kWh)
     - `egridCharge` → Grid Based Battery Charge (kWh)
     - `einput` → Grid Power Consumption (kWh)
-  
+
   If you're experiencing issues with certain sensors not showing data, you can enable debug logging to see the available data fields from the API.
 
 ## Support

@@ -14,17 +14,17 @@ _LOGGER = logging.getLogger(__name__)
 def encrypt_password(password: str, username: str) -> str:
     """
     Encrypt password using the Neovolt API method.
-    
+
     The encryption uses:
     - Key: SHA-256 hash of username
     - IV: MD5 hash of username
     - AES-CBC mode with PKCS7 padding
     - Base64 encoding of the final encrypted data
-    
+
     Args:
         password: The clear-text password
         username: The username (used for key derivation)
-        
+
     Returns:
         Base64-encoded encrypted password
     """
@@ -42,7 +42,7 @@ def encrypt_password(password: str, username: str) -> str:
         cipher = AES.new(key, AES.MODE_CBC, iv)
         ct = cipher.encrypt(data)
         return base64.b64encode(ct).decode('ascii')
-    
+
     except Exception as e:
         _LOGGER.error("Error encrypting password: %s", str(e))
         return ""

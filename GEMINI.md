@@ -86,7 +86,7 @@ custom_components/bytewatt/
 
 ### Services Available
 - `bytewatt.set_discharge_time` - Set battery discharge end time
-- `bytewatt.set_discharge_start_time` - Set battery discharge start time  
+- `bytewatt.set_discharge_start_time` - Set battery discharge start time
 - `bytewatt.set_charge_start_time` - Set battery charge start time
 - `bytewatt.set_charge_end_time` - Set battery charge end time
 - `bytewatt.set_minimum_soc` - Set minimum state of charge
@@ -127,13 +127,13 @@ custom_components/bytewatt/
 ```json
 {
   "code": 200,
-  "msg": "Success", 
+  "msg": "Success",
   "data": {
     "gridCharge": 0,
     "timeChaf1": "14:30",
     "timeChae1": "16:00",
     "ctrDis": 0,
-    "timeDisf1": "16:00", 
+    "timeDisf1": "16:00",
     "timeDise1": "06:00",
     "batUseCap": 6,
     "batHighCap": 100
