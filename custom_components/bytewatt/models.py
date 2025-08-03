@@ -173,10 +173,10 @@ class BatterySettings:
         settings.additional_fields = additional_fields
         return settings
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, system_id: str) -> Dict[str, Any]:
         """Convert settings to dictionary for API submissions using new API format."""
         result = {
-            "id": "",  # Empty for all devices
+            "id": system_id,
             "basicModeJp": None,
             "peaceModeJp": None,
             "vppModeJp": None,

@@ -125,8 +125,11 @@ class ByteWattChargeStartTime(ByteWattTimeEntity):
         """Set the charge start time."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            system_id = self._config_entry.data.get(CONF_SERIAL_NUMBER)
             time_str = self._format_time_for_api(value)
-            success = await client.update_battery_settings(charge_start_time=time_str)
+            success = await client.update_battery_settings(
+                system_id=system_id, charge_start_time=time_str
+            )
             if success:
                 _LOGGER.info(f"Successfully updated charge start time to {time_str}")
                 await self.coordinator.async_request_refresh()
@@ -169,8 +172,11 @@ class ByteWattChargeEndTime(ByteWattTimeEntity):
         """Set the charge end time."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            system_id = self._config_entry.data.get(CONF_SERIAL_NUMBER)
             time_str = self._format_time_for_api(value)
-            success = await client.update_battery_settings(charge_end_time=time_str)
+            success = await client.update_battery_settings(
+                system_id=system_id, charge_end_time=time_str
+            )
             if success:
                 _LOGGER.info(f"Successfully updated charge end time to {time_str}")
                 await self.coordinator.async_request_refresh()
@@ -213,8 +219,11 @@ class ByteWattDischargeStartTime(ByteWattTimeEntity):
         """Set the discharge start time."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            system_id = self._config_entry.data.get(CONF_SERIAL_NUMBER)
             time_str = self._format_time_for_api(value)
-            success = await client.update_battery_settings(discharge_start_time=time_str)
+            success = await client.update_battery_settings(
+                system_id=system_id, discharge_start_time=time_str
+            )
             if success:
                 _LOGGER.info(f"Successfully updated discharge start time to {time_str}")
                 await self.coordinator.async_request_refresh()
@@ -257,8 +266,11 @@ class ByteWattDischargeEndTime(ByteWattTimeEntity):
         """Set the discharge end time."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            system_id = self._config_entry.data.get(CONF_SERIAL_NUMBER)
             time_str = self._format_time_for_api(value)
-            success = await client.update_battery_settings(discharge_end_time=time_str)
+            success = await client.update_battery_settings(
+                system_id=system_id, discharge_end_time=time_str
+            )
             if success:
                 _LOGGER.info(f"Successfully updated discharge end time to {time_str}")
                 await self.coordinator.async_request_refresh()
