@@ -94,7 +94,10 @@ class ByteWattSwitchEntity(CoordinatorEntity, SwitchEntity):
         """Return if entity is available."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            return hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache is not None
+            return (
+                hasattr(client.api_client, "_settings_cache") and
+                client.api_client._settings_cache is not None
+            )
         except Exception:
             return False
 
@@ -132,9 +135,13 @@ class ByteWattDischargeControlSwitch(ByteWattSwitchEntity):
         """Set the discharge control state."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            system_id = self._config_entry.data.get(CONF_SERIAL_NUMBER, "")
 
             # Use the client's update method with the discharge_time_control parameter
-            success = await client.update_battery_settings(discharge_time_control=state)
+            success = await client.update_battery_settings(
+                system_id=system_id,
+                discharge_time_control=state
+            )
 
             if success:
                 action = "enabled" if state else "disabled"
@@ -169,9 +176,13 @@ class ByteWattGridChargeSwitch(ByteWattSwitchEntity):
         """Set the grid charging state."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            system_id = self._config_entry.data.get(CONF_SERIAL_NUMBER, "")
 
             # Use the client's update method with the grid_charging parameter
-            success = await client.update_battery_settings(grid_charging=state)
+            success = await client.update_battery_settings(
+                system_id=system_id,
+                grid_charging=state
+            )
 
             if success:
                 action = "enabled" if state else "disabled"
