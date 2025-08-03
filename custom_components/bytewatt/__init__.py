@@ -1,7 +1,6 @@
 """The Byte-Watt integration."""
 import asyncio
 import logging
-import random
 
 import voluptuous as vol
 
@@ -14,6 +13,7 @@ from .bytewatt_client import ByteWattClient
 from .coordinator import ByteWattDataUpdateCoordinator
 from .const import (
     DOMAIN,
+    API_LOCK,
     CONF_USERNAME,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -60,6 +60,7 @@ PLATFORMS = ["sensor", "number", "time", "switch"]
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Byte-Watt component."""
     hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][API_LOCK] = asyncio.Lock()
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -89,12 +90,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass,
         client=client,
         serial_number=serial_number,
-        scan_interval=scan_interval + random.uniform(-0.1, +0.1),  # Add slight randomness to avoid sync issues
+        scan_interval=scan_interval,
         entry_id=entry.entry_id,
         options=recovery_options
     )
 
-    await asyncio.sleep(random.uniform(0, 5))
     await coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = {
