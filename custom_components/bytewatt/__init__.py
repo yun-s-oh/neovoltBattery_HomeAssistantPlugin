@@ -1,6 +1,7 @@
 """The Byte-Watt integration."""
 import asyncio
 import logging
+import random
 
 import voluptuous as vol
 
@@ -88,11 +89,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass,
         client=client,
         serial_number=serial_number,
-        scan_interval=scan_interval,
+        scan_interval=scan_interval + random.uniform(-0.1, +0.1),  # Add slight randomness to avoid sync issues
         entry_id=entry.entry_id,
         options=recovery_options
     )
 
+    await asyncio.sleep(random.uniform(0, 5))
     await coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = {
