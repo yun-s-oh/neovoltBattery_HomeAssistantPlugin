@@ -18,6 +18,7 @@ from .const import (
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_SERIAL_NUMBER,
+    CONF_SYSTEM_ID,
     CONF_RECOVERY_ENABLED,
     CONF_HEARTBEAT_INTERVAL,
     CONF_MAX_DATA_AGE,
@@ -68,6 +69,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
     serial_number = entry.data.get(CONF_SERIAL_NUMBER, "All")
+    system_id = entry.data.get(CONF_SYSTEM_ID, "")
 
     # Get all configuration options with defaults
     options = entry.options or {}
@@ -90,6 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass,
         client=client,
         serial_number=serial_number,
+        system_id=system_id,
         scan_interval=scan_interval,
         entry_id=entry.entry_id,
         options=recovery_options
@@ -281,6 +284,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
 
         # Update battery settings
         success = await coordinator.client.update_battery_settings(
+            system_id=coordinator._system_id,
             discharge_end_time=end_discharge
         )
 
@@ -311,6 +315,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
 
         # Update battery settings
         success = await coordinator.client.update_battery_settings(
+            system_id=coordinator._system_id,
             discharge_start_time=start_discharge
         )
 
@@ -341,6 +346,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
 
         # Update battery settings
         success = await coordinator.client.update_battery_settings(
+            system_id=coordinator._system_id,
             charge_start_time=start_charge
         )
 
@@ -371,6 +377,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
 
         # Update battery settings
         success = await coordinator.client.update_battery_settings(
+            system_id=coordinator._system_id,
             charge_end_time=end_charge
         )
 
@@ -401,6 +408,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
 
         # Update battery settings
         success = await coordinator.client.update_battery_settings(
+            system_id=coordinator._system_id,
             minimum_soc=minimum_soc
         )
 
@@ -430,6 +438,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
 
         # Update battery settings
         success = await coordinator.client.update_battery_settings(
+            system_id=coordinator._system_id,
             charge_cap=charge_cap
         )
 
@@ -469,6 +478,7 @@ async def register_battery_services(hass: HomeAssistant, client: ByteWattClient,
 
         # Update battery settings
         success = await coordinator.client.update_battery_settings(
+            system_id=coordinator._system_id,
             discharge_start_time=discharge_start_time,
             discharge_end_time=discharge_end_time,
             charge_start_time=charge_start_time,

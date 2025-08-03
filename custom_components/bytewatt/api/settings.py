@@ -1,9 +1,7 @@
 """Battery settings API interface for Byte-Watt integration."""
 import asyncio
 import logging
-import time
-from datetime import datetime
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional
 
 from homeassistant.util import dt as dt_util
 
@@ -120,11 +118,12 @@ class BatterySettingsAPI:
             _LOGGER.error(f"Error validating {setting_name}: {ex}")
             return None
 
-    async def fetch_current_settings(self, max_retries: int = 3, retry_delay: int = 1) -> Optional[BatterySettings]:
+    async def fetch_current_settings(self, system_id: str, max_retries: int = 3, retry_delay: int = 1) -> Optional[BatterySettings]:
         """
         Fetch current battery settings directly from the API using new endpoint.
 
         Args:
+            system_id: The system ID of the inverter.
             max_retries: Maximum number of retry attempts
             retry_delay: Delay between retries in seconds
 
@@ -132,7 +131,7 @@ class BatterySettingsAPI:
             BatterySettings if successful, None if failed
         """
         # Use new API endpoint with empty id= to get settings for all devices
-        endpoint = "api/iterate/sysSet/getChargeConfigInfo?id="
+        endpoint = f"api/iterate/sysSet/getChargeConfigInfo?id={system_id}"
 
         for attempt in range(max_retries):
             response = await self.api_client._async_get(endpoint)
@@ -191,11 +190,12 @@ class BatterySettingsAPI:
             _LOGGER.warning("Using default settings as fallback")
             return self._settings_cache
 
-    async def get_current_settings(self, max_retries: int = 3, retry_delay: int = 1) -> BatterySettings:
+    async def get_current_settings(self, system_id: str, max_retries: int = 3, retry_delay: int = 1) -> BatterySettings:
         """
         Get current battery settings - first try API, then fallback to cache.
 
         Args:
+            system_id: The system ID of the inverter.
             max_retries: Maximum number of retry attempts
             retry_delay: Delay between retries in seconds
 
@@ -203,7 +203,7 @@ class BatterySettingsAPI:
             Current battery settings
         """
         # First try to fetch from API
-        settings = await self.fetch_current_settings(max_retries, retry_delay)
+        settings = await self.fetch_current_settings(system_id, max_retries, retry_delay)
 
         # If that failed but we have cached settings, use those
         if settings is None and self._settings_loaded:
@@ -218,6 +218,7 @@ class BatterySettingsAPI:
         return settings
 
     async def update_battery_settings(self,
+                              system_id: str,
                               discharge_start_time=None,
                               discharge_end_time=None,
                               charge_start_time=None,
@@ -232,6 +233,7 @@ class BatterySettingsAPI:
         Update battery settings with API fetch to preserve existing settings.
 
         Args:
+            system_id: The system ID of the inverter.
             discharge_start_time: Time to start battery discharge (format HH:MM)
             discharge_end_time: Time to end battery discharge (format HH:MM)
             charge_start_time: Time to start battery charging (format HH:MM)
@@ -263,7 +265,7 @@ class BatterySettingsAPI:
             return False
 
         # Get current settings from the API - this will fetch from API or use cache as fallback
-        current_settings = await self.get_current_settings()
+        current_settings = await self.get_current_settings(system_id)
 
         # Create a copy of the current settings
         settings = current_settings

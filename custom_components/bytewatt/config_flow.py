@@ -11,6 +11,7 @@ from .const import (
     CONF_USERNAME,
     CONF_PASSWORD,
     CONF_SERIAL_NUMBER,
+    CONF_SYSTEM_ID,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL
@@ -29,6 +30,7 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self.client = None
         self.user_input = {}
+        self.inverters = []
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -62,6 +64,11 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_inverter(self, user_input=None):
         """Handle the inverter selection step."""
+        if not self.inverters:
+            self.inverters = await self.client.get_inverter_list()
+            if not self.inverters:
+                return self.async_abort(reason="no_inverters")
+
         configured_serials = [
             entry.data.get(CONF_SERIAL_NUMBER)
             for entry in self.hass.config_entries.async_entries(DOMAIN)
@@ -73,6 +80,19 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if serial_number in configured_serials:
                 return self.async_abort(reason="already_configured")
 
+            if serial_number == "All":
+                system_id = ""
+            else:
+                inverter = next(
+                    (inv for inv in self.inverters if inv["sysSn"] == serial_number), None
+                )
+                if inverter:
+                    system_id = inverter.get("systemId")
+                else:
+                    # Handle case where inverter is not found (should not happen)
+                    return self.async_abort(reason="inverter_not_found")
+            
+            self.user_input[CONF_SYSTEM_ID] = system_id
             self.user_input.update(user_input)
             title = (
                 f"Byte-Watt ({self.user_input[CONF_USERNAME]}) - "
@@ -83,17 +103,12 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data=self.user_input,
             )
 
-        inverters = await self.client.get_inverter_list()
-
-        if not inverters:
-            return self.async_abort(reason="no_inverters")
-
         inverter_choices = {}
         if "All" not in configured_serials:
             inverter_choices["All"] = "All"
 
-        if inverters:
-            for inverter in inverters:
+        if self.inverters:
+            for inverter in self.inverters:
                 if inverter['sysSn'] not in configured_serials:
                     inverter_choices[inverter['sysSn']] = inverter['sysSn']
 

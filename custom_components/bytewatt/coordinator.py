@@ -56,6 +56,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         hass: HomeAssistant,
         client: ByteWattClient,
         serial_number: str,
+        system_id: str,
         scan_interval: int,
         entry_id: str,
         options: Dict[str, Any] = None,
@@ -64,6 +65,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         self.client = client
         self.hass = hass
         self._serial_number = serial_number
+        self._system_id = system_id
         self.entry_id = entry_id
         self._last_battery_data = None
         self._scan_interval = scan_interval
@@ -176,7 +178,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 if self.client.api_client.has_fresh_settings_update():
                     _LOGGER.debug("Skipping battery settings fetch - fresh update in progress")
                 else:
-                    await self.client.api_client.async_get_battery_settings()
+                    await self.client.api_client.async_get_battery_settings(self._system_id)
             except Exception as ex:
                 _LOGGER.warning(f"Failed to fetch battery settings: {ex}")
 

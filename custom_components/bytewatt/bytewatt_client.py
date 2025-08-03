@@ -42,7 +42,13 @@ class ByteWattClient:
         async with self.lock:
             return await self.api_client.async_get_inverter_list()
 
+    async def get_battery_settings(self, system_id: str) -> Optional[Dict[str, Any]]:
+        """Get battery settings from the API."""
+        async with self.lock:
+            return await self.api_client.async_get_battery_settings(system_id)
+
     async def update_battery_settings(self,
+                                    system_id: str,
                                     discharge_start_time: str = None,
                                     discharge_end_time: str = None,
                                     charge_start_time: str = None,
@@ -54,6 +60,7 @@ class ByteWattClient:
         """Update battery settings."""
         async with self.lock:
             return await self.api_client.async_update_battery_settings(
+                system_id=system_id,
                 discharge_start_time=discharge_start_time,
                 discharge_end_time=discharge_end_time,
                 charge_start_time=charge_start_time,

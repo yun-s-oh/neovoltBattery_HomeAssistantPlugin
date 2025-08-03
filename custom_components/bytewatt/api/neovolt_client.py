@@ -265,7 +265,7 @@ class NeovoltClient:
             return None
 
     async def async_get_battery_data(
-        self, sysSn: str, station_id: str = None
+        self, sysSn: str, station_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """Get data for a specific battery using the new API endpoint."""
         if not self.token:
@@ -551,13 +551,13 @@ class NeovoltClient:
             "Authorization": f"Bearer {self.token}"
         }
 
-    async def async_get_battery_settings(self):
+    async def async_get_battery_settings(self, system_id: str):
         """Get current battery settings and cache them."""
         try:
             from .settings import BatterySettingsAPI
 
             settings_api = BatterySettingsAPI(self)
-            settings = await settings_api.fetch_current_settings()
+            settings = await settings_api.fetch_current_settings(system_id)
 
             if settings:
                 self._settings_cache = settings
@@ -571,6 +571,7 @@ class NeovoltClient:
 
     async def async_update_battery_settings(
         self,
+        system_id: str,
         discharge_start_time: str = None,
         discharge_end_time: str = None,
         charge_start_time: str = None,
@@ -590,6 +591,7 @@ class NeovoltClient:
 
             # Use the async method directly
             result = await settings_api.update_battery_settings(
+                system_id=system_id,
                 discharge_start_time=discharge_start_time,
                 discharge_end_time=discharge_end_time,
                 charge_start_time=charge_start_time,
@@ -611,7 +613,7 @@ class NeovoltClient:
                 )
 
                 # Schedule auto-fetch with delay to allow server propagation
-                asyncio.create_task(self._auto_fetch_updated_settings())
+                asyncio.create_task(self._auto_fetch_updated_settings(system_id))
 
             return result
 
@@ -619,7 +621,7 @@ class NeovoltClient:
             _LOGGER.error("Error updating battery settings: %s", error)
             return False
 
-    async def _auto_fetch_updated_settings(self):
+    async def _auto_fetch_updated_settings(self, system_id: str):
         """Auto-fetch updated settings from API after successful update with delay."""
         try:
             # Wait 3 seconds to allow server propagation
@@ -632,7 +634,7 @@ class NeovoltClient:
             # Fetch fresh settings from API
             from .settings import BatterySettingsAPI
             settings_api = BatterySettingsAPI(self)
-            settings = await settings_api.fetch_current_settings()
+            settings = await settings_api.fetch_current_settings(system_id)
 
             if settings:
                 self._settings_cache = settings
