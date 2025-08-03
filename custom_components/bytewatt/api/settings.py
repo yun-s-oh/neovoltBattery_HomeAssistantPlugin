@@ -304,16 +304,19 @@ class BatterySettingsAPI:
             _LOGGER.debug(f"Updating grid charging to {grid_charge_value} ({'enabled' if grid_charge_value else 'disabled'})")
 
         # Send the updated settings to the server
-        return await self._send_battery_settings(settings, max_retries, retry_delay)
+        # Send the updated settings to the server
+        return await self._send_battery_settings(system_id, settings, max_retries, retry_delay)
 
     async def _send_battery_settings(self,
-                              settings: BatterySettings,
-                              max_retries: int = 5,
-                              retry_delay: int = 1) -> bool:
+                              system_id: str,
+                               settings: BatterySettings,
+                               max_retries: int = 5,
+                               retry_delay: int = 1) -> bool:
         """
         Internal method to send battery settings to the server.
 
         Args:
+            system_id: The system ID to update.
             settings: Battery settings to send
             max_retries: Maximum number of retry attempts
             retry_delay: Delay between retries in seconds
@@ -322,65 +325,48 @@ class BatterySettingsAPI:
             True if successful, False otherwise
         """
         endpoint = "api/iterate/sysSet/updateChargeConfigInfo"
+        payload = settings.to_dict()
+        payload["id"] = system_id
 
         for attempt in range(max_retries):
-            response = await self.api_client._async_put(endpoint, settings.to_dict())
+            response = await self.api_client._async_put(endpoint, payload)
 
             if not response:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
                 continue
 
-            # Check for successful response based on new API format
-            if response.get("code") == 200 and response.get("msg") == "Success":
-                _LOGGER.debug(f"Successfully updated battery settings using new API")
-                # Update settings cache with the successfully sent settings
-                self._settings_cache = settings
-                self._settings_loaded = True
-
-                # Log the updated settings
-                _LOGGER.debug(f"Updated settings: " +
-                            f"Charge: {settings.time_chaf1a}-{settings.time_chae1a}, " +
-                            f"Discharge: {settings.time_disf1a}-{settings.time_dise1a}, " +
-                            f"Min SOC: {settings.bat_use_cap}%")
+            # Check for a successful response code
+            if response.get("code") == 200:
+                _LOGGER.info(f"Successfully updated battery settings for system_id: {system_id}")
                 return True
-            elif response.get("code") == 9007:
-                _LOGGER.warning(f"Network exception from server (attempt {attempt+1}/{max_retries}): {response.get('msg', 'Unknown error')}")
-                # Server is reporting a network issue, let's retry
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay)
-                continue
-            elif response.get("code") == 6069:
-                # Session expired during settings update
-                _LOGGER.warning("Session expired (code 6069), attempting to re-login")
-                if await self.api_client.async_login():
-                    # Retry immediately after successful re-login
-                    response = await self.api_client._async_put(endpoint, settings.to_dict())
-                    if response and response.get("code") == 200 and response.get("msg") == "Success":
-                        _LOGGER.debug(f"Successfully updated battery settings after re-login")
-                        # Update settings cache with the successfully sent settings
-                        self._settings_cache = settings
-                        self._settings_loaded = True
-                        return True
-
-                # If re-login or retry failed, continue to next attempt
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay)
-                continue
+            # Handle specific error codes if needed
+            elif response.get("code") == 401:
+                _LOGGER.error("Authentication error when updating battery settings. Please re-login.")
+                # Trigger re-authentication if possible
+                # await self.api_client.async_login()
+                return False
             else:
-                _LOGGER.error(f"Unexpected response when setting battery parameters: {response}")
-                if attempt < max_retries - 1:
+                _LOGGER.warning(
+                    f"Received unexpected response code {response.get('code')} "
+                    f"with message: {response.get('msg')}"
+                )
+                # Retry on server-side errors if appropriate
+                if response.get("code", 0) >= 500 and attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
-                continue
+                else:
+                    _LOGGER.error(f"Failed to update battery settings with response: {response}")
+                    return False
 
         _LOGGER.error(f"Failed to update battery settings after {max_retries} attempts")
         return False
 
-    async def set_battery_settings(self, end_discharge="23:00", max_retries: int = 5, retry_delay: int = 1) -> bool:
+    async def set_battery_settings(self, system_id: str, end_discharge="23:00", max_retries: int = 5, retry_delay: int = 1) -> bool:
         """
         Legacy method for backward compatibility - updates only the discharge end time.
 
         Args:
+            system_id: The system ID to update.
             end_discharge: Time to end battery discharge (format HH:MM)
             max_retries: Maximum number of retry attempts
             retry_delay: Delay between retries in seconds
@@ -388,13 +374,14 @@ class BatterySettingsAPI:
         Returns:
             True if successful, False otherwise
         """
-        # Sanitize the time format
-        sanitized_end_discharge = sanitize_time_format(end_discharge)
+        # Sanitize and validate the time format
+        sanitized_end_discharge = self._validate_and_sanitize_time(end_discharge)
         if not sanitized_end_discharge:
-            _LOGGER.error(f"Invalid end discharge time format: {end_discharge}")
+            _LOGGER.error(f"Invalid time format for end_discharge: {end_discharge}")
             return False
 
         return await self.update_battery_settings(
+            system_id=system_id,
             discharge_end_time=sanitized_end_discharge,
             max_retries=max_retries,
             retry_delay=retry_delay
