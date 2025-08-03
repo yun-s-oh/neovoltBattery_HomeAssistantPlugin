@@ -177,15 +177,3 @@ update_battery_settings:
           max: 100
           step: 1
           unit_of_measurement: "%"
-
-force_reconnect:
-  name: Force Reconnect
-  description: Force reconnection to the ByteWatt API
-
-health_check:
-  name: Health Check
-  description: Run a comprehensive health check of the ByteWatt integration
-
-toggle_diagnostics:
-  name: Toggle Diagnostics
-  description: Enable or disable diagnostic logging for the ByteWatt integration
