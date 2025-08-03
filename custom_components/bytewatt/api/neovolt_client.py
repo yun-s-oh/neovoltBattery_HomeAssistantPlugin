@@ -703,7 +703,6 @@ class NeovoltClient:
                             continue
                         else:
                             _LOGGER.error("Rate limit retries failed for GET %s", url)
-                        return None
 
                     if response.status == 200:
                         return await response.json()
