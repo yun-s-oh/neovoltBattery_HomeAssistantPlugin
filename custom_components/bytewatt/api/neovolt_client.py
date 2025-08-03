@@ -3,7 +3,6 @@ import logging
 import asyncio
 import aiohttp
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -15,6 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
 DEFAULT_BASE_URL = "https://monitor.byte-watt.com"
+
 
 class NeovoltClient:
     """API Client for Neovolt battery systems."""
@@ -144,7 +144,9 @@ class NeovoltClient:
                 return True
 
         except (asyncio.TimeoutError, aiohttp.ClientError) as error:
-            _LOGGER.error("Error connecting to Neovolt API with fallback method: %s", error)
+            _LOGGER.error(
+                "Error connecting to Neovolt API with fallback method: %s", error
+            )
             return False
 
     async def async_get_device_list(self) -> Optional[Dict[str, Any]]:
@@ -181,7 +183,9 @@ class NeovoltClient:
                 if result.get("code") != 0 and result.get("code") != 200:
                     # Check for session expiry
                     if result.get("code") == 6069:
-                        _LOGGER.warning("Session expired (code 6069), attempting to re-login")
+                        _LOGGER.warning(
+                            "Session expired (code 6069), attempting to re-login"
+                        )
                         if await self.async_login():
                             return await self.async_get_device_list()
 
@@ -241,7 +245,9 @@ class NeovoltClient:
 
                 if result.get("code") != 0 and result.get("code") != 200:
                     if result.get("code") == 6069:
-                        _LOGGER.warning("Session expired (code 6069), attempting to re-login")
+                        _LOGGER.warning(
+                            "Session expired (code 6069), attempting to re-login"
+                        )
                         if await self.async_login():
                             return await self.async_get_inverter_list()
 
@@ -258,7 +264,9 @@ class NeovoltClient:
             _LOGGER.error("Error fetching inverter list: %s", error)
             return None
 
-    async def async_get_battery_data(self, sysSn: str, station_id: str = None) -> Optional[Dict[str, Any]]:
+    async def async_get_battery_data(
+        self, sysSn: str, station_id: str = None
+    ) -> Optional[Dict[str, Any]]:
         """Get data for a specific battery using the new API endpoint."""
         if not self.token:
             if not await self.async_login():
@@ -314,7 +322,9 @@ class NeovoltClient:
                 if result.get("code") != 0 and result.get("code") != 200:
                     # Check for session expiry
                     if result.get("code") == 6069:
-                        _LOGGER.warning("Session expired (code 6069), attempting to re-login")
+                        _LOGGER.warning(
+                            "Session expired (code 6069), attempting to re-login"
+                        )
                         if await self.async_login():
                             return await self.async_get_battery_data(station_id)
 
@@ -328,7 +338,11 @@ class NeovoltClient:
                 # Store power data
                 power_data = result.get("data", {})
                 _LOGGER.debug("Received battery power data: %s", power_data)
-                _LOGGER.debug("Available power data attributes: %s", list(power_data.keys()) if power_data else None)
+                if power_data:
+                    _LOGGER.debug(
+                        "Available power data attributes: %s",
+                        list(power_data.keys())
+                    )
 
                 # Merge power data into our result
                 battery_data.update(power_data)
@@ -343,8 +357,10 @@ class NeovoltClient:
             end_date = now.strftime("%Y-%m-%d")
             begin_date = "2020-01-01"
 
-            _LOGGER.debug("Fetching statistics for date range: %s to %s (current time: %s)",
-                         begin_date, end_date, now.strftime("%Y-%m-%d %H:%M:%S %Z"))
+            _LOGGER.debug(
+                "Fetching statistics for date range: %s to %s (current time: %s)",
+                begin_date, end_date, now.strftime("%Y-%m-%d %H:%M:%S %Z")
+            )
 
             stats_params = {
                 "sysSn": sysSn,
@@ -353,9 +369,14 @@ class NeovoltClient:
                 "endDate": end_date
             }
 
-            _LOGGER.debug("Fetching energy statistics from: %s with params: %s", stats_url, stats_params)
+            _LOGGER.debug(
+                "Fetching energy statistics from: %s with params: %s",
+                stats_url,
+                stats_params
+            )
             async with asyncio.timeout(DEFAULT_TIMEOUT):
-                # Add try/except for stats request to avoid breaking the whole function if stats fails
+                # Add try/except for stats request to avoid breaking the whole
+                # function if stats fails
                 try:
                     stats_response = await self.session.get(
                         url=stats_url,
@@ -364,17 +385,23 @@ class NeovoltClient:
                     )
                 except (asyncio.TimeoutError, aiohttp.ClientError) as stats_error:
                     _LOGGER.error("Error fetching energy statistics: %s", stats_error)
-                    # Return the power data we already have instead of failing completely
-                    _LOGGER.debug("Returning only power data due to statistics fetch error")
+                    # Return the power data we already have instead of failing
+                    _LOGGER.debug(
+                        "Returning only power data due to statistics fetch error"
+                    )
                     return battery_data
 
                 if stats_response.status == 200:
                     stats_result = await stats_response.json()
                     _LOGGER.debug("Energy statistics response: %s", stats_result)
 
-                    if stats_result.get("code") == 200 or stats_result.get("code") == 0:
+                    if stats_result.get("code") in (200, 0):
                         stats_data = stats_result.get("data", {})
-                        _LOGGER.debug("Energy statistics data fields: %s", list(stats_data.keys()) if stats_data else "No data")
+                        if stats_data:
+                            _LOGGER.debug(
+                                "Energy statistics data fields: %s",
+                                list(stats_data.keys())
+                            )
 
                         # Map the statistics data to the grid sensor names
                         if stats_data:
@@ -398,7 +425,10 @@ class NeovoltClient:
                             battery_data["Grid_Power_Consumption"] = stats_data.get("einput")
                     elif stats_result.get("code") == 6069:
                         # Session expired while fetching statistics
-                        _LOGGER.warning("Session expired (code 6069) during statistics fetch, attempting to re-login")
+                        _LOGGER.warning(
+                            "Session expired (code 6069) during statistics fetch, "
+                            "attempting to re-login"
+                        )
                         if await self.async_login():
                             return await self.async_get_battery_data(station_id)
                     else:
@@ -423,7 +453,11 @@ class NeovoltClient:
                 "tday": today_date
             }
 
-            _LOGGER.debug("Fetching today's stats from: %s with params: %s", today_url, today_params)
+            _LOGGER.debug(
+                "Fetching today's stats from: %s with params: %s",
+                today_url,
+                today_params
+            )
 
             async with asyncio.timeout(DEFAULT_TIMEOUT):
                 try:
@@ -443,11 +477,14 @@ class NeovoltClient:
 
                     if today_result.get("code") == 200:
                         today_data = today_result.get("data", {})
-                        _LOGGER.debug("Today's stats data fields: %s", list(today_data.keys()) if today_data else "No data")
+                        if today_data:
+                            _LOGGER.debug(
+                                "Today's stats data fields: %s",
+                                list(today_data.keys())
+                            )
 
                         # Map today's stats to battery data
                         if today_data:
-                            # Energy stats for today
                             battery_data["PV_Generated_Today"] = today_data.get("epvtoday")
                             battery_data["Total_PV_Generation"] = today_data.get("epvtotal")
                             battery_data["Consumed_Today"] = today_data.get("eload")
@@ -459,24 +496,33 @@ class NeovoltClient:
                             # Percentages (multiply by 100 to get percentage)
                             self_consumption = today_data.get("eselfConsumption")
                             if self_consumption is not None:
-                                battery_data["Self_Consumption"] = round(self_consumption * 100, 2)
+                                battery_data["Self_Consumption"] = round(
+                                    self_consumption * 100, 2
+                                )
 
                             self_sufficiency = today_data.get("eselfSufficiency")
                             if self_sufficiency is not None:
-                                battery_data["Self_Sufficiency"] = round(self_sufficiency * 100, 2)
+                                battery_data["Self_Sufficiency"] = round(
+                                    self_sufficiency * 100, 2
+                                )
 
                             # Environmental stats
                             battery_data["Trees_Planted"] = today_data.get("treeNum")
                             carbon_kg = today_data.get("carbonNum")
                             if carbon_kg is not None:
-                                battery_data["CO2_Reduction_Tons"] = round(carbon_kg / 1000, 2)
+                                battery_data["CO2_Reduction_Tons"] = round(
+                                    carbon_kg / 1000, 2
+                                )
 
                             # Financial (optional)
                             battery_data["Today_Income"] = today_data.get("todayIncome")
                             battery_data["Total_Income"] = today_data.get("totalIncome")
                     elif today_result.get("code") == 6069:
                         # Session expired while fetching today's stats
-                        _LOGGER.warning("Session expired (code 6069) during today's stats fetch, attempting to re-login")
+                        _LOGGER.warning(
+                            "Session expired (code 6069) during today's stats "
+                            "fetch, attempting to re-login"
+                        )
                         if await self.async_login():
                             return await self.async_get_battery_data(station_id)
                     else:
@@ -523,15 +569,17 @@ class NeovoltClient:
             _LOGGER.error("Error fetching battery settings: %s", error)
             return None
 
-    async def async_update_battery_settings(self,
-                                          discharge_start_time: str = None,
-                                          discharge_end_time: str = None,
-                                          charge_start_time: str = None,
-                                          charge_end_time: str = None,
-                                          minimum_soc: int = None,
-                                          charge_cap: int = None,
-                                          discharge_time_control: bool = None,
-                                          grid_charging: bool = None) -> bool:
+    async def async_update_battery_settings(
+        self,
+        discharge_start_time: str = None,
+        discharge_end_time: str = None,
+        charge_start_time: str = None,
+        charge_end_time: str = None,
+        minimum_soc: int = None,
+        charge_cap: int = None,
+        discharge_time_control: bool = None,
+        grid_charging: bool = None
+    ) -> bool:
         """Update battery settings."""
         try:
             # Import the settings API
@@ -542,14 +590,14 @@ class NeovoltClient:
 
             # Use the async method directly
             result = await settings_api.update_battery_settings(
-                discharge_start_time,
-                discharge_end_time,
-                charge_start_time,
-                charge_end_time,
-                minimum_soc,
-                charge_cap,
-                discharge_time_control,
-                grid_charging
+                discharge_start_time=discharge_start_time,
+                discharge_end_time=discharge_end_time,
+                charge_start_time=charge_start_time,
+                charge_end_time=charge_end_time,
+                minimum_soc=minimum_soc,
+                charge_cap=charge_cap,
+                discharge_time_control=discharge_time_control,
+                grid_charging=grid_charging,
             )
 
             # If successful, set fresh update flag and schedule auto-fetch from API
@@ -557,7 +605,10 @@ class NeovoltClient:
                 # Set fresh update flag to prevent coordinator from overwriting
                 self._fresh_settings_update = True
                 self._settings_update_time = dt_util.utcnow()
-                _LOGGER.debug("Settings update successful, scheduling auto-fetch from API in 3 seconds")
+                _LOGGER.debug(
+                    "Settings update successful, scheduling auto-fetch from API "
+                    "in 3 seconds"
+                )
 
                 # Schedule auto-fetch with delay to allow server propagation
                 asyncio.create_task(self._auto_fetch_updated_settings())
@@ -574,7 +625,9 @@ class NeovoltClient:
             # Wait 3 seconds to allow server propagation
             await asyncio.sleep(3)
 
-            _LOGGER.debug("Auto-fetching updated settings from API after successful update")
+            _LOGGER.debug(
+                "Auto-fetching updated settings from API after successful update"
+            )
 
             # Fetch fresh settings from API
             from .settings import BatterySettingsAPI
@@ -583,9 +636,13 @@ class NeovoltClient:
 
             if settings:
                 self._settings_cache = settings
-                _LOGGER.debug("Auto-fetch successful: updated cache with fresh settings from API")
+                _LOGGER.debug(
+                    "Auto-fetch successful: updated cache with fresh settings from API"
+                )
             else:
-                _LOGGER.warning("Auto-fetch failed: could not get updated settings from API")
+                _LOGGER.warning(
+                    "Auto-fetch failed: could not get updated settings from API"
+                )
 
         except Exception as ex:
             _LOGGER.error(f"Error during auto-fetch of updated settings: {ex}")
@@ -596,11 +653,15 @@ class NeovoltClient:
                 # Clear flag after 30 more seconds as safety net
                 await asyncio.sleep(30)
                 self._fresh_settings_update = False
-                _LOGGER.debug("Cleared fresh_settings_update flag after 30 second safety timeout")
+                _LOGGER.debug(
+                    "Cleared fresh_settings_update flag after 30 second safety timeout"
+                )
             except asyncio.CancelledError:
                 # Handle task cancellation gracefully
                 self._fresh_settings_update = False
-                _LOGGER.debug("Auto-fetch task cancelled, cleared fresh_settings_update flag")
+                _LOGGER.debug(
+                    "Auto-fetch task cancelled, cleared fresh_settings_update flag"
+                )
             except Exception as ex:
                 _LOGGER.error(f"Error during flag cleanup: {ex}")
                 self._fresh_settings_update = False
@@ -626,17 +687,38 @@ class NeovoltClient:
         headers = self._get_auth_headers()
 
         try:
-            async with self.session.get(url, headers=headers, timeout=DEFAULT_TIMEOUT) as response:
-                if response.status == 200:
-                    return await response.json()
-                else:
-                    _LOGGER.error("GET request failed with status %s", response.status)
-                    return None
+            for attempt in range(3):
+                async with self.session.get(
+                    url, headers=headers, timeout=DEFAULT_TIMEOUT
+                ) as response:
+                    if response.status == 429:
+                        _LOGGER.warning(
+                            "Rate limit exceeded on GET %s, retrying in 1s. "
+                            "Attempt %d/3",
+                            url,
+                            attempt + 1
+                        )
+                        if attempt < 2:
+                            await asyncio.sleep(1)
+                            continue
+                        else:
+                            _LOGGER.error("Rate limit retries failed for GET %s", url)
+                        return None
+
+                    if response.status == 200:
+                        return await response.json()
+                    else:
+                        _LOGGER.error(
+                            "GET request failed with status %s", response.status
+                        )
+                        return None
         except Exception as error:
             _LOGGER.error("Error making GET request: %s", error)
             return None
 
-    async def _async_post(self, endpoint: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _async_post(
+        self, endpoint: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Make an async POST request."""
         url = f"{self.base_url}/{endpoint}"
         headers = self._get_auth_headers()
@@ -650,21 +732,43 @@ class NeovoltClient:
         })
 
         try:
-            async with self.session.post(url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT) as response:
-                if response.status == 200:
-                    return await response.json()
-                else:
-                    _LOGGER.error("POST request failed with status %s for URL %s", response.status, url)
-                    _LOGGER.error("Request headers: %s", headers)
-                    _LOGGER.error("Request data: %s", data)
-                    response_text = await response.text()
-                    _LOGGER.error("Response text: %s", response_text)
-                    return None
+            for attempt in range(3):
+                async with self.session.post(
+                    url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT
+                ) as response:
+                    if response.status == 429:
+                        _LOGGER.warning(
+                            "Rate limit exceeded on POST %s, retrying in 1s. "
+                            "Attempt %d/3",
+                            url,
+                            attempt + 1
+                        )
+                        if attempt < 2:
+                            await asyncio.sleep(1)
+                            continue
+                        else:
+                            _LOGGER.error("Rate limit retries failed for POST %s", url)
+
+                    if response.status == 200:
+                        return await response.json()
+                    else:
+                        _LOGGER.error(
+                            "POST request failed with status %s for URL %s",
+                            response.status,
+                            url
+                        )
+                        _LOGGER.error("Request headers: %s", headers)
+                        _LOGGER.error("Request data: %s", data)
+                        response_text = await response.text()
+                        _LOGGER.error("Response text: %s", response_text)
+                        return None
         except Exception as error:
             _LOGGER.error("Error making POST request: %s", error)
             return None
 
-    async def _async_put(self, endpoint: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _async_put(
+        self, endpoint: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Make an async PUT request."""
         url = f"{self.base_url}/{endpoint}"
         headers = self._get_auth_headers()
@@ -678,16 +782,36 @@ class NeovoltClient:
         })
 
         try:
-            async with self.session.put(url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT) as response:
-                if response.status == 200:
-                    return await response.json()
-                else:
-                    _LOGGER.error("PUT request failed with status %s for URL %s", response.status, url)
-                    _LOGGER.error("Request headers: %s", headers)
-                    _LOGGER.error("Request data: %s", data)
-                    response_text = await response.text()
-                    _LOGGER.error("Response text: %s", response_text)
-                    return None
+            for attempt in range(3):
+                async with self.session.put(
+                    url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT
+                ) as response:
+                    if response.status == 429:
+                        _LOGGER.warning(
+                            "Rate limit exceeded on PUT %s, retrying in 1s. "
+                            "Attempt %d/3",
+                            url,
+                            attempt + 1
+                        )
+                        if attempt < 2:
+                            await asyncio.sleep(1)
+                            continue
+                        else:
+                            _LOGGER.error("Rate limit retries failed for PUT %s", url)
+
+                    if response.status == 200:
+                        return await response.json()
+                    else:
+                        _LOGGER.error(
+                            "PUT request failed with status %s for URL %s",
+                            response.status,
+                            url
+                        )
+                        _LOGGER.error("Request headers: %s", headers)
+                        _LOGGER.error("Request data: %s", data)
+                        response_text = await response.text()
+                        _LOGGER.error("Response text: %s", response_text)
+                        return None
         except Exception as error:
             _LOGGER.error("Error making PUT request: %s", error)
             return None
