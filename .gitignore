@@ -3,3 +3,10 @@
 *.pyc
 .env
 .vscode/
+.venv/
+
+# Antigravity specific
+.antigravity/.env/
+.antigravity/state.json
+.antigravity/logs/*
+!.antigravity/logs/changelog.md
