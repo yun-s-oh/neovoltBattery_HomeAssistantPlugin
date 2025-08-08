@@ -1,3 +1,7 @@
 .aider*
 /TestData/
 *.pyc
+.env
+.vscode/
+.venv/
+GEMINI.md
