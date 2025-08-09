@@ -81,8 +81,6 @@ SENSOR_BATTERY_CHARGED_TODAY = "battery_charged_today"
 SENSOR_BATTERY_DISCHARGED_TODAY = "battery_discharged_today"
 SENSOR_SELF_CONSUMPTION = "self_consumption"
 SENSOR_SELF_SUFFICIENCY = "self_sufficiency"
-SENSOR_TREES_PLANTED = "trees_planted"
-SENSOR_CO2_REDUCTION = "co2_reduction_tons"
 
 # Circuit breaker and connection constants
 MAX_DIAGNOSTIC_LOGS = 100

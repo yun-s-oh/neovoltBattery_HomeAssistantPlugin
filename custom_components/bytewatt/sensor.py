@@ -37,8 +37,6 @@ from .const import (
     SENSOR_BATTERY_DISCHARGED_TODAY,
     SENSOR_SELF_CONSUMPTION,
     SENSOR_SELF_SUFFICIENCY,
-    SENSOR_TREES_PLANTED,
-    SENSOR_CO2_REDUCTION,
     SENSOR_TOTAL_BATTERY_DISCHARGE,
 )
 
@@ -292,26 +290,6 @@ async def async_setup_entry(
             "Self_Sufficiency", 
             "%", 
             "mdi:home-battery-outline"
-        ),
-        ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_TREES_PLANTED, 
-            "Trees Planted", 
-            None,
-            "Trees_Planted", 
-            "trees", 
-            "mdi:tree"
-        ),
-        ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_CO2_REDUCTION, 
-            "CO2 Reduction", 
-            None,
-            "CO2_Reduction_Tons", 
-            "tons", 
-            "mdi:molecule-co2"
         ),
     ]
     

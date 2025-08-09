@@ -405,12 +405,6 @@ class NeovoltClient:
                             if self_sufficiency is not None:
                                 battery_data["Self_Sufficiency"] = round(self_sufficiency * 100, 2)
                             
-                            # Environmental stats
-                            battery_data["Trees_Planted"] = today_data.get("treeNum")
-                            carbon_kg = today_data.get("carbonNum")
-                            if carbon_kg is not None:
-                                battery_data["CO2_Reduction_Tons"] = round(carbon_kg / 1000, 2)
-                            
                             # Financial (optional)
                             battery_data["Today_Income"] = today_data.get("todayIncome")
                             battery_data["Total_Income"] = today_data.get("totalIncome")
