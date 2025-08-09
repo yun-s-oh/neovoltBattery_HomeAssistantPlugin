@@ -354,13 +354,14 @@ class NeovoltClient:
                     )
             
             # Now get today's stats
-            today_url = f"{self.base_url}/api/stable/home/getSumDataForCustomer"
+            today_url = f"{self.base_url}/api/report/energy/getEnergyStatistics"
             today_date = now.strftime("%Y-%m-%d")
             
             today_params = {
-                "sn": "All",
+                "sysSn": "All",
                 "stationId": station_id or "",
-                "tday": today_date
+                "beginDate": today_date,
+                "endDate": today_date
             }
             
             _LOGGER.debug("Fetching today's stats from: %s with params: %s", today_url, today_params)
@@ -388,10 +389,9 @@ class NeovoltClient:
                         # Map today's stats to battery data
                         if today_data:
                             # Energy stats for today
-                            battery_data["PV_Generated_Today"] = today_data.get("epvtoday")
-                            battery_data["Total_PV_Generation"] = today_data.get("epvtotal")
+                            battery_data["PV_Generated_Today"] = today_data.get("epvT")
                             battery_data["Consumed_Today"] = today_data.get("eload")
-                            battery_data["Feed_In_Today"] = today_data.get("eoutput")
+                            battery_data["Feed_In_Today"] = today_data.get("eout")
                             battery_data["Grid_Import_Today"] = today_data.get("einput")
                             battery_data["Battery_Charged_Today"] = today_data.get("echarge")
                             battery_data["Battery_Discharged_Today"] = today_data.get("edischarge")
