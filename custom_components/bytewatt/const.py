@@ -13,6 +13,8 @@ CONF_STALE_CHECKS_THRESHOLD = "stale_checks_threshold"
 CONF_NOTIFY_ON_RECOVERY = "notify_on_recovery"
 CONF_DIAGNOSTICS_MODE = "diagnostics_mode"
 CONF_AUTO_RECONNECT_TIME = "auto_reconnect_time"
+CONF_SERIAL_NUMBER = "serial_number"
+CONF_SYSTEM_ID = "system_id"
 
 # Defaults
 DEFAULT_SCAN_INTERVAL = 60  # 1 minute
@@ -88,3 +90,4 @@ RECENT_DATA_THRESHOLD = 300  # 5 minutes in seconds
 STALE_DATA_THRESHOLD = 3600  # 1 hour in seconds
 AUTO_RECONNECT_INTERVAL_HOURS = 24  # 24 hours
 HTTPS_PORT = 443
+API_LOCK = "bytewatt_api_lock"

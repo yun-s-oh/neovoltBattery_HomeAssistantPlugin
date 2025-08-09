@@ -55,6 +55,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         self,
         hass: HomeAssistant,
         client: ByteWattClient,
+        serial_number: str,
+        system_id: str,
         scan_interval: int,
         entry_id: str,
         options: Dict[str, Any] = None,
@@ -62,6 +64,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         """Initialize."""
         self.client = client
         self.hass = hass
+        self._serial_number = serial_number
+        self._system_id = system_id
         self.entry_id = entry_id
         self._last_battery_data = None
         self._scan_interval = scan_interval
@@ -166,7 +170,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             
             # Get battery data
             with self._timed_operation("get_battery_data"):
-                battery_data = await self.client.get_battery_data()
+                battery_data = await self.client.get_battery_data(self._serial_number)
             
             # Get battery settings (don't fail if this fails)
             # Skip if we recently updated settings to prevent cache race condition
@@ -641,7 +645,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         # Check battery data endpoint
         try:
             data_start = time.time()
-            battery_data = await self.client.get_battery_data()
+            battery_data = await self.client.get_battery_data(self._serial_number)
             data_duration = time.time() - data_start
             
             api_checks["battery_endpoint"] = {

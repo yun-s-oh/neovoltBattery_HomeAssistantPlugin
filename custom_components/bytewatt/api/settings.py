@@ -132,7 +132,7 @@ class BatterySettingsAPI:
             BatterySettings if successful, None if failed
         """
         # Use new API endpoint with empty id= to get settings for all devices
-        endpoint = "api/iterate/sysSet/getChargeConfigInfo?id="
+        endpoint = f"api/iterate/sysSet/getChargeConfigInfo?id={self.api_client.system_id or ''}"
         
         for attempt in range(max_retries):
             response = await self.api_client._async_get(endpoint)
@@ -320,9 +320,11 @@ class BatterySettingsAPI:
             True if successful, False otherwise
         """
         endpoint = "api/iterate/sysSet/updateChargeConfigInfo"
+        payload = settings.to_dict()
+        payload['id'] = self.api_client.system_id or ''
         
         for attempt in range(max_retries):
-            response = await self.api_client._async_put(endpoint, settings.to_dict())
+            response = await self.api_client._async_put(endpoint, payload)
             
             if not response:
                 if attempt < max_retries - 1:
@@ -353,7 +355,7 @@ class BatterySettingsAPI:
                 _LOGGER.warning("Session expired (code 6069), attempting to re-login")
                 if await self.api_client.async_login():
                     # Retry immediately after successful re-login
-                    response = await self.api_client._async_put(endpoint, settings.to_dict())
+                    response = await self.api_client._async_put(endpoint, payload)
                     if response and response.get("code") == 200 and response.get("msg") == "Success":
                         _LOGGER.debug(f"Successfully updated battery settings after re-login")
                         # Update settings cache with the successfully sent settings
