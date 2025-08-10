@@ -18,6 +18,15 @@ class ConnectionStatistics:
         self.last_success_time: Optional[datetime] = None
         self.last_error_time: Optional[datetime] = None
         self.last_error_message: Optional[str] = None
+
+    def reset(self):
+        """Reset all statistics."""
+        self.success_history = []
+        self.response_times = []
+        self.error_types = {}
+        self.last_success_time = None
+        self.last_error_time = None
+        self.last_error_message = None
     
     def record_success(self, response_time: float):
         """Record a successful API call."""

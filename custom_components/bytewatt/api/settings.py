@@ -133,7 +133,7 @@ class BatterySettingsAPI:
         """
         # Use new API endpoint with empty id= to get settings for all devices
         endpoint = f"api/iterate/sysSet/getChargeConfigInfo?id={self.api_client.system_id or ''}"
-        
+        _LOGGER.debug("Fetching chargeinfo from endpoint %s", endpoint)
         for attempt in range(max_retries):
             response = await self.api_client._async_get(endpoint)
             
@@ -322,7 +322,7 @@ class BatterySettingsAPI:
         endpoint = "api/iterate/sysSet/updateChargeConfigInfo"
         payload = settings.to_dict()
         payload['id'] = self.api_client.system_id or ''
-        
+        _LOGGER.debug("Updating chargeinfo from %s with params %s", endpoint, payload)
         for attempt in range(max_retries):
             response = await self.api_client._async_put(endpoint, payload)
             

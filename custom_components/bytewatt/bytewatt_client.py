@@ -19,7 +19,8 @@ class ByteWattClient:
         self.hass = hass
         self.username = username
         self.password = password
-        self.api_client = NeovoltClient(hass, username, password)
+        self.system_id = system_id
+        self.api_client = NeovoltClient(hass, username, password, system_id=system_id)
         self.lock = self.hass.data[DOMAIN][API_LOCK]
     
     async def initialize(self) -> bool:

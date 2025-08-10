@@ -38,9 +38,6 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Validate the credentials
-            client = ByteWattClient(self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD])
-            success = await client.initialize()
-
             self.client = ByteWattClient(
                 self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
             )
@@ -141,6 +138,10 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class ByteWattOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options for Byte-Watt."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry):
+        """Initialize options flow."""
+        self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""

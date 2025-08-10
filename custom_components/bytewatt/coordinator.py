@@ -48,6 +48,11 @@ NOTIFICATION_RECOVERY = "bytewatt_recovery"
 NOTIFICATION_ERROR = "bytewatt_error"
 
 
+class MidnightRolloverSkip(Exception):
+    """Custom exception for intentional update skipping at midnight."""
+    pass
+
+
 class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching Byte-Watt data with improved error handling and recovery."""
 
@@ -143,9 +148,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     
     async def _async_update_data(self):
         """Update data via library with improved error handling."""
+        request_start_time = dt_util.utcnow()
         try:
-            # Store current time as timezone-aware datetime for reuse
-            current_time = dt_util.utcnow()
             # Check if circuit breaker allows execution
             if not self.circuit_breaker.can_execute():
                 _LOGGER.warning(
@@ -171,7 +175,20 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # Get battery data
             with self._timed_operation("get_battery_data"):
                 battery_data = await self.client.get_battery_data(self._serial_number)
+
+            # Heuristic to detect error state where API returns all zeros.
+            if isinstance(battery_data, dict) and 'soc' in battery_data:
+                key_metrics = ['soc', 'pgrid', 'pload', 'pbat', 'ppv']
+                if all(battery_data.get(key, 0) == 0 for key in key_metrics):
+                    _LOGGER.warning(
+                        "Received data with key metrics at zero, which may indicate an API error. "
+                        "Using cached data to prevent sensor reset."
+                    )
+                    battery_data = None  # This will trigger the use of cached data.
             
+            # Get a fresh timestamp now that the data is fetched
+            successful_update_time = dt_util.utcnow()
+
             # Get battery settings (don't fail if this fails)
             # Skip if we recently updated settings to prevent cache race condition
             try:
@@ -182,10 +199,19 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             except Exception as ex:
                 _LOGGER.warning(f"Failed to fetch battery settings: {ex}")
             
-            # If we got battery data, update our cached version and last successful time
-            if battery_data:
+            # If we got valid battery data, update our cached version and last successful time
+            if battery_data and 'soc' in battery_data:
+                if self._last_successful_update:
+                    local_request_start_time = dt_util.as_local(request_start_time)
+                    local_update_time = dt_util.as_local(successful_update_time)
+                    if local_request_start_time.date() !=  local_update_time.date():
+                        raise MidnightRolloverSkip(
+                            "New data is from a different day. "
+                            "Skipping update to prevent sensor value resets at midnight."
+                        )
+
                 self._last_battery_data = battery_data
-                self._last_successful_update = current_time
+                self._last_successful_update = successful_update_time
                 self._consecutive_stale_checks = 0
                 self._recovery_attempts = 0  # Reset recovery attempts on successful update
                 
@@ -196,6 +222,11 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             elif self._last_battery_data is None:
                 # Only raise error if we never got data
                 error_msg = "Failed to get battery data and no cached data available"
+                if not battery_data:
+                    error_msg = "Received empty response from API and no cached data available."
+                elif 'soc' not in battery_data:
+                    error_msg = f"Received invalid data (missing 'soc') and no cached data available. Keys: {list(battery_data.keys())}"
+
                 self.diagnostic_service.log_diagnostic("data_update", {
                     "type": "battery_data",
                     "result": "failure",
@@ -203,7 +234,12 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 })
                 raise UpdateFailed(error_msg)
             else:
-                _LOGGER.warning("Using cached battery data due to API error")
+                _LOGGER.warning("Using cached battery data due to API error or invalid data received")
+                if not battery_data:
+                    _LOGGER.debug("API returned empty response.")
+                elif 'soc' not in battery_data:
+                    _LOGGER.debug(f"API returned invalid data, missing 'soc'. Keys: {list(battery_data.keys())}")
+                
                 self.diagnostic_service.log_diagnostic("data_update", {
                     "type": "battery_data",
                     "result": "fallback_to_cache"
@@ -212,7 +248,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # If we got here successfully, ensure any error notifications are dismissed
             if self._notify_on_recovery:
                 try:
-                    await self.hass.components.persistent_notification.async_dismiss(NOTIFICATION_ERROR)
+                    await async_dismiss(NOTIFICATION_ERROR)
                 except (AttributeError, TypeError):
                     _LOGGER.debug("Could not dismiss notification - may not exist yet")
             
@@ -221,11 +257,20 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 "battery": self._last_battery_data or {},
                 "connection_status": "connected" if battery_data else "partial",
                 "circuit_breaker": self.circuit_breaker.state.value,
-                "last_updated": current_time.isoformat()
+                "last_updated": successful_update_time.isoformat()
             }
             
             _LOGGER.debug(f"Coordinator data refreshed with keys: {list(data.keys())}")
             return data
+        except MidnightRolloverSkip as err:
+            _LOGGER.info(f"Skipping data update: {err}")
+            # Return cached data to avoid state changes
+            return {
+                "battery": self._last_battery_data or {},
+                "connection_status": "cached",
+                "circuit_breaker": self.circuit_breaker.state.value,
+                "last_updated": self._last_successful_update.isoformat() if self._last_successful_update else "unknown"
+            }
         except Exception as err:
             # Record the error in diagnostics
             self.diagnostic_service.log_diagnostic("update_error", {
@@ -241,7 +286,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 # Update cache freshness status
                 cache_age = "unknown"
                 if self._last_successful_update:
-                    age_seconds = (current_time - self._last_successful_update).total_seconds()
+                    age_seconds = (request_start_time - self._last_successful_update).total_seconds()
                     if age_seconds < RECENT_DATA_THRESHOLD:
                         cache_age = "fresh"
                     elif age_seconds < STALE_DATA_THRESHOLD:
@@ -260,7 +305,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 # Create error notification if enabled
                 if self._notify_on_recovery:
                     try:
-                        await self.hass.components.persistent_notification.async_create(
+                        await async_create(
                             f"ByteWatt integration error: {err}",
                             title="ByteWatt Connection Error",
                             notification_id=NOTIFICATION_ERROR
@@ -429,7 +474,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         if self._notify_on_recovery:
             try:
                 message = f"ByteWatt integration is attempting to reconnect ({recovery_type} recovery)"
-                await self.hass.components.persistent_notification.async_create(
+                await async_create(
                     message,
                     title="ByteWatt Recovery",
                     notification_id=NOTIFICATION_RECOVERY
@@ -468,8 +513,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # Update notification if enabled
             if self._notify_on_recovery:
                 try:
-                    await self.hass.components.persistent_notification.async_dismiss(NOTIFICATION_RECOVERY)
-                    await self.hass.components.persistent_notification.async_create(
+                    await async_dismiss(NOTIFICATION_RECOVERY)
+                    await async_create(
                         "ByteWatt integration successfully reconnected to the API",
                         title="ByteWatt Recovery Success",
                         notification_id=NOTIFICATION_RECOVERY
@@ -497,7 +542,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # Update notification if enabled
             if self._notify_on_recovery:
                 try:
-                    await self.hass.components.persistent_notification.async_create(
+                    await async_create(
                         f"ByteWatt recovery attempt failed: {err}. Will retry in {next_check_seconds} seconds.",
                         title="ByteWatt Recovery Failed",
                         notification_id=NOTIFICATION_RECOVERY

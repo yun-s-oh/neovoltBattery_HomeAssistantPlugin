@@ -51,7 +51,7 @@ class NeovoltClient:
             if result.get("code") != 429:
                 return response
 
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "API rate limit exceeded (429) for %s. Retrying in %s seconds... (Attempt %s/%s)",
                 url,
                 delay,
