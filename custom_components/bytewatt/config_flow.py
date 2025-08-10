@@ -38,9 +38,6 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Validate the credentials
-            client = ByteWattClient(self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD])
-            success = await client.initialize()
-
             self.client = ByteWattClient(
                 self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
             )
