@@ -90,3 +90,4 @@ RECENT_DATA_THRESHOLD = 300  # 5 minutes in seconds
 STALE_DATA_THRESHOLD = 3600  # 1 hour in seconds
 AUTO_RECONNECT_INTERVAL_HOURS = 24  # 24 hours
 HTTPS_PORT = 443
+API_LOCK = "bytewatt_api_lock"

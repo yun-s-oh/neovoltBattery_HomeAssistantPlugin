@@ -39,6 +39,37 @@ class NeovoltClient:
         self._fresh_settings_update = False
         self._settings_update_time = None
     
+    async def _api_request_with_retry(self, method: str, url: str, **kwargs) -> aiohttp.ClientResponse:
+        """Make an API request with retry logic for 429 errors."""
+        max_retries = 3
+        delay = 1
+
+        for attempt in range(max_retries):
+            response = await self.session.request(method, url, **kwargs)
+
+            result = await response.json()
+            if result.get("code") != 429:
+                return response
+
+            _LOGGER.warning(
+                "API rate limit exceeded (429) for %s. Retrying in %s seconds... (Attempt %s/%s)",
+                url,
+                delay,
+                attempt + 1,
+                max_retries,
+            )
+            # Release connection before waiting
+            response.release()
+
+            if attempt < max_retries - 1:
+                await asyncio.sleep(delay)
+            else:
+                _LOGGER.error("API request to %s failed after %s retries.", url, max_retries)
+                # If all retries fail, return the last response to be handled by the caller
+                return response
+        # This should not be reached, but as a fallback
+        raise aiohttp.ClientError(f"API request failed after multiple retries for {url}")
+
     async def async_login(self) -> bool:
         """Login to the Neovolt API using encrypted password."""
         _LOGGER.debug("Logging in to Neovolt API as %s", self.username)
@@ -72,7 +103,7 @@ class NeovoltClient:
 
                 result = await response.json()
 
-                if result.get("code") != 0 and result.get("code") != 200:
+                if result.get("code") not in (0, 200):
                     _LOGGER.error(
                         "Login failed with code %s: %s",
                         result.get("code"),
@@ -125,7 +156,7 @@ class NeovoltClient:
 
                 result = await response.json()
 
-                if result.get("code") != 0 and result.get("code") != 200:
+                if result.get("code") not in (0, 200):
                     _LOGGER.error(
                         "Fallback login failed with code %s: %s",
                         result.get("code"),
@@ -159,7 +190,8 @@ class NeovoltClient:
 
         try:
             async with asyncio.timeout(DEFAULT_TIMEOUT):
-                response = await self.session.get(
+                response = await self._api_request_with_retry(
+                    "get",
                     url=url,
                     headers=self._get_auth_headers()
                 )
@@ -180,7 +212,7 @@ class NeovoltClient:
 
                 result = await response.json()
 
-                if result.get("code") != 0 and result.get("code") != 200:
+                if result.get("code") not in (0, 200):
                     # Check for session expiry
                     if result.get("code") == 6069:
                         _LOGGER.warning("Session expired (code 6069), attempting to re-login")
@@ -221,7 +253,8 @@ class NeovoltClient:
 
         try:
             async with asyncio.timeout(DEFAULT_TIMEOUT):
-                response = await self.session.get(
+                response = await self._api_request_with_retry(
+                    "get",
                     url=url,
                     headers=headers
                 )
@@ -241,7 +274,7 @@ class NeovoltClient:
 
                 result = await response.json()
 
-                if result.get("code") != 0 and result.get("code") != 200:
+                if result.get("code") not in (0, 200):
                     if result.get("code") == 6069:
                         _LOGGER.warning("Session expired (code 6069), attempting to re-login")
                         if await self.async_login():
@@ -291,7 +324,8 @@ class NeovoltClient:
 
             # Get real-time power data
             async with asyncio.timeout(DEFAULT_TIMEOUT):
-                response = await self.session.get(
+                response = await self._api_request_with_retry(
+                    "get",
                     url=url,
                     params=params,
                     headers=headers
@@ -313,7 +347,7 @@ class NeovoltClient:
 
                 result = await response.json()
 
-                if result.get("code") != 0 and result.get("code") != 200:
+                if result.get("code") not in (0, 200):
                     # Check for session expiry
                     if result.get("code") == 6069:
                         _LOGGER.warning("Session expired (code 6069), attempting to re-login")
@@ -359,7 +393,8 @@ class NeovoltClient:
             async with asyncio.timeout(DEFAULT_TIMEOUT):
                 # Add try/except for stats request to avoid breaking the whole function if stats fails
                 try:
-                    stats_response = await self.session.get(
+                    stats_response = await self._api_request_with_retry(
+                        "get",
                         url=stats_url,
                         params=stats_params,
                         headers=headers
@@ -374,7 +409,7 @@ class NeovoltClient:
                     stats_result = await stats_response.json()
                     _LOGGER.debug("Energy statistics response: %s", stats_result)
 
-                    if stats_result.get("code") == 200 or stats_result.get("code") == 0:
+                    if stats_result.get("code") == 200:
                         stats_data = stats_result.get("data", {})
                         _LOGGER.debug("Energy statistics data fields: %s", list(stats_data.keys()) if stats_data else "No data")
 
@@ -429,7 +464,8 @@ class NeovoltClient:
 
             async with asyncio.timeout(DEFAULT_TIMEOUT):
                 try:
-                    today_response = await self.session.get(
+                    today_response = await self._api_request_with_retry(
+                        "get",
                         url=today_url,
                         params=today_params,
                         headers=headers
@@ -627,7 +663,8 @@ class NeovoltClient:
         headers = self._get_auth_headers()
 
         try:
-            async with self.session.get(url, headers=headers, timeout=DEFAULT_TIMEOUT) as response:
+            response = await self._api_request_with_retry("get", url, headers=headers, timeout=DEFAULT_TIMEOUT)
+            async with response:
                 if response.status == 200:
                     return await response.json()
                 else:
@@ -651,7 +688,8 @@ class NeovoltClient:
         })
 
         try:
-            async with self.session.post(url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT) as response:
+            response = await self._api_request_with_retry("post", url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT)
+            async with response:
                 if response.status == 200:
                     return await response.json()
                 else:
@@ -679,7 +717,8 @@ class NeovoltClient:
         })
         
         try:
-            async with self.session.put(url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT) as response:
+            response = await self._api_request_with_retry("put", url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT)
+            async with response:
                 if response.status == 200:
                     return await response.json()
                 else:

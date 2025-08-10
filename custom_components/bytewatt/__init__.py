@@ -13,6 +13,7 @@ from .bytewatt_client import ByteWattClient
 from .coordinator import ByteWattDataUpdateCoordinator
 from .const import (
     DOMAIN,
+    API_LOCK,
     CONF_USERNAME,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -60,6 +61,7 @@ PLATFORMS = ["sensor", "number", "time", "switch"]
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Byte-Watt component."""
     hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][API_LOCK] = asyncio.Lock()
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
