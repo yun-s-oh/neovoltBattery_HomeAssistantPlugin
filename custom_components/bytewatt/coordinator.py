@@ -228,7 +228,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # If we got here successfully, ensure any error notifications are dismissed
             if self._notify_on_recovery:
                 try:
-                    await self.hass.components.persistent_notification.async_dismiss(NOTIFICATION_ERROR)
+                    await async_dismiss(NOTIFICATION_ERROR)
                 except (AttributeError, TypeError):
                     _LOGGER.debug("Could not dismiss notification - may not exist yet")
             
@@ -285,7 +285,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 # Create error notification if enabled
                 if self._notify_on_recovery:
                     try:
-                        await self.hass.components.persistent_notification.async_create(
+                        await async_create(
                             f"ByteWatt integration error: {err}",
                             title="ByteWatt Connection Error",
                             notification_id=NOTIFICATION_ERROR
@@ -454,7 +454,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
         if self._notify_on_recovery:
             try:
                 message = f"ByteWatt integration is attempting to reconnect ({recovery_type} recovery)"
-                await self.hass.components.persistent_notification.async_create(
+                await async_create(
                     message,
                     title="ByteWatt Recovery",
                     notification_id=NOTIFICATION_RECOVERY
@@ -493,8 +493,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # Update notification if enabled
             if self._notify_on_recovery:
                 try:
-                    await self.hass.components.persistent_notification.async_dismiss(NOTIFICATION_RECOVERY)
-                    await self.hass.components.persistent_notification.async_create(
+                    await async_dismiss(NOTIFICATION_RECOVERY)
+                    await async_create(
                         "ByteWatt integration successfully reconnected to the API",
                         title="ByteWatt Recovery Success",
                         notification_id=NOTIFICATION_RECOVERY
@@ -522,7 +522,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # Update notification if enabled
             if self._notify_on_recovery:
                 try:
-                    await self.hass.components.persistent_notification.async_create(
+                    await async_create(
                         f"ByteWatt recovery attempt failed: {err}. Will retry in {next_check_seconds} seconds.",
                         title="ByteWatt Recovery Failed",
                         notification_id=NOTIFICATION_RECOVERY
