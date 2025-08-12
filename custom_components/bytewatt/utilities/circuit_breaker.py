@@ -32,6 +32,13 @@ class CircuitBreaker:
         self.half_open_timeout = half_open_timeout  # 1 minute by default
         self.last_state_change = datetime.now()
         self.stats = ConnectionStatistics()
+
+    def reset(self):
+        """Reset the circuit breaker to a closed state."""
+        _LOGGER.info("Circuit breaker has been manually reset to CLOSED state.")
+        self.state = CircuitBreakerState.CLOSED
+        self.last_state_change = datetime.now()
+        self.stats.reset()
     
     def record_success(self, response_time: float):
         """Record a successful API call."""
