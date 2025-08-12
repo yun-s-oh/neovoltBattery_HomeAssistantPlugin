@@ -48,6 +48,11 @@ NOTIFICATION_RECOVERY = "bytewatt_recovery"
 NOTIFICATION_ERROR = "bytewatt_error"
 
 
+class MidnightRolloverSkip(Exception):
+    """Custom exception for intentional update skipping at midnight."""
+    pass
+
+
 class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching Byte-Watt data with improved error handling and recovery."""
 
@@ -143,9 +148,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
     
     async def _async_update_data(self):
         """Update data via library with improved error handling."""
+        request_start_time = dt_util.utcnow()
         try:
-            # Store current time as timezone-aware datetime for reuse
-            current_time = dt_util.utcnow()
             # Check if circuit breaker allows execution
             if not self.circuit_breaker.can_execute():
                 _LOGGER.warning(
@@ -172,6 +176,9 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             with self._timed_operation("get_battery_data"):
                 battery_data = await self.client.get_battery_data(self._serial_number)
             
+            # Get a fresh timestamp now that the data is fetched
+            successful_update_time = dt_util.utcnow()
+
             # Get battery settings (don't fail if this fails)
             # Skip if we recently updated settings to prevent cache race condition
             try:
@@ -184,8 +191,17 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             
             # If we got battery data, update our cached version and last successful time
             if battery_data:
+                if self._last_successful_update:
+                    local_request_start_time = dt_util.as_local(request_start_time)
+                    local_update_time = dt_util.as_local(successful_update_time)
+                    if local_request_start_time.date() !=  local_update_time.date():
+                        raise MidnightRolloverSkip(
+                            "New data is from a different day. "
+                            "Skipping update to prevent sensor value resets at midnight."
+                        )
+
                 self._last_battery_data = battery_data
-                self._last_successful_update = current_time
+                self._last_successful_update = successful_update_time
                 self._consecutive_stale_checks = 0
                 self._recovery_attempts = 0  # Reset recovery attempts on successful update
                 
@@ -221,11 +237,20 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 "battery": self._last_battery_data or {},
                 "connection_status": "connected" if battery_data else "partial",
                 "circuit_breaker": self.circuit_breaker.state.value,
-                "last_updated": current_time.isoformat()
+                "last_updated": successful_update_time.isoformat()
             }
             
             _LOGGER.debug(f"Coordinator data refreshed with keys: {list(data.keys())}")
             return data
+        except MidnightRolloverSkip as err:
+            _LOGGER.info(f"Skipping data update: {err}")
+            # Return cached data to avoid state changes
+            return {
+                "battery": self._last_battery_data or {},
+                "connection_status": "cached",
+                "circuit_breaker": self.circuit_breaker.state.value,
+                "last_updated": self._last_successful_update.isoformat() if self._last_successful_update else "unknown"
+            }
         except Exception as err:
             # Record the error in diagnostics
             self.diagnostic_service.log_diagnostic("update_error", {
@@ -241,7 +266,7 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 # Update cache freshness status
                 cache_age = "unknown"
                 if self._last_successful_update:
-                    age_seconds = (current_time - self._last_successful_update).total_seconds()
+                    age_seconds = (request_start_time - self._last_successful_update).total_seconds()
                     if age_seconds < RECENT_DATA_THRESHOLD:
                         cache_age = "fresh"
                     elif age_seconds < STALE_DATA_THRESHOLD:
