@@ -175,6 +175,16 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             # Get battery data
             with self._timed_operation("get_battery_data"):
                 battery_data = await self.client.get_battery_data(self._serial_number)
+
+            # Heuristic to detect error state where API returns all zeros.
+            if isinstance(battery_data, dict) and 'soc' in battery_data:
+                key_metrics = ['soc', 'pgrid', 'pload', 'pbat', 'ppv']
+                if all(battery_data.get(key, 0) == 0 for key in key_metrics):
+                    _LOGGER.warning(
+                        "Received data with key metrics at zero, which may indicate an API error. "
+                        "Using cached data to prevent sensor reset."
+                    )
+                    battery_data = None  # This will trigger the use of cached data.
             
             # Get a fresh timestamp now that the data is fetched
             successful_update_time = dt_util.utcnow()
@@ -189,8 +199,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             except Exception as ex:
                 _LOGGER.warning(f"Failed to fetch battery settings: {ex}")
             
-            # If we got battery data, update our cached version and last successful time
-            if battery_data:
+            # If we got valid battery data, update our cached version and last successful time
+            if battery_data and 'soc' in battery_data:
                 if self._last_successful_update:
                     local_request_start_time = dt_util.as_local(request_start_time)
                     local_update_time = dt_util.as_local(successful_update_time)
@@ -212,6 +222,11 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             elif self._last_battery_data is None:
                 # Only raise error if we never got data
                 error_msg = "Failed to get battery data and no cached data available"
+                if not battery_data:
+                    error_msg = "Received empty response from API and no cached data available."
+                elif 'soc' not in battery_data:
+                    error_msg = f"Received invalid data (missing 'soc') and no cached data available. Keys: {list(battery_data.keys())}"
+
                 self.diagnostic_service.log_diagnostic("data_update", {
                     "type": "battery_data",
                     "result": "failure",
@@ -219,7 +234,12 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                 })
                 raise UpdateFailed(error_msg)
             else:
-                _LOGGER.warning("Using cached battery data due to API error")
+                _LOGGER.warning("Using cached battery data due to API error or invalid data received")
+                if not battery_data:
+                    _LOGGER.debug("API returned empty response.")
+                elif 'soc' not in battery_data:
+                    _LOGGER.debug(f"API returned invalid data, missing 'soc'. Keys: {list(battery_data.keys())}")
+                
                 self.diagnostic_service.log_diagnostic("data_update", {
                     "type": "battery_data",
                     "result": "fallback_to_cache"
