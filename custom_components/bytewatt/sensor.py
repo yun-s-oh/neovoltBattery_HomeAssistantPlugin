@@ -318,22 +318,16 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
         self._sensor_type = sensor_type
         self._attribute = attribute
         sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
-        self._friendly_name = name
+        self._attr_name = name
+        self._attr_has_entity_name = True
         if sys_sn != "All":
-            self._attr_name = f"{name} {sys_sn}"
             self._attr_unique_id = f"{config_entry.entry_id}_{sensor_type}_{sys_sn.lower()}"
         else:
-            self._attr_name = name
             self._attr_unique_id = f"{config_entry.entry_id}_{sensor_type}"
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = unit
         self._attr_icon = icon
         self._attr_entity_category = entity_category
-
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return self._friendly_name
 
     @property
     def device_info(self):

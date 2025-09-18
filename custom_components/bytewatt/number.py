@@ -50,12 +50,10 @@ class ByteWattNumberEntity(CoordinatorEntity, NumberEntity):
         super().__init__(coordinator)
         self._config_entry = config_entry
         sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
-        self._friendly_name = name
+        self._attr_name = name
         if sys_sn != "All":
-            self._attr_name = f"{name} {sys_sn}"
             self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
         else:
-            self._attr_name = name
             self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}"
         self._attr_icon = icon
         self._attr_native_min_value = min_value
@@ -64,10 +62,6 @@ class ByteWattNumberEntity(CoordinatorEntity, NumberEntity):
         self._attr_device_class = device_class
         self._attr_entity_category = EntityCategory.CONFIG
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the number entity."""
-        return self._friendly_name
 
     @property
     def device_info(self):
