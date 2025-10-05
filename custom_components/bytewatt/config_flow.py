@@ -1,4 +1,5 @@
 """Config flow for Byte-Watt integration."""
+import asyncio
 import logging
 import voluptuous as vol
 
@@ -9,6 +10,7 @@ from homeassistant.helpers import config_validation as cv
 from .bytewatt_client import ByteWattClient
 from .const import (
     DOMAIN, 
+    API_LOCK,
     CONF_USERNAME, 
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -37,6 +39,11 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
+            # Ensure the domain data and lock are initialized
+            if DOMAIN not in self.hass.data:
+                self.hass.data[DOMAIN] = {}
+                self.hass.data[DOMAIN][API_LOCK] = asyncio.Lock()
+
             # Validate the credentials
             self.client = ByteWattClient(
                 self.hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD]

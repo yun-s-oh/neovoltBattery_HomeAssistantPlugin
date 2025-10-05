@@ -51,10 +51,8 @@ class ByteWattNumberEntity(CoordinatorEntity, NumberEntity):
         self._config_entry = config_entry
         sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
         self._attr_name = name
-        if sys_sn != "All":
-            self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
-        else:
-            self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}"
+        self._attr_has_entity_name = False
+        self._attr_unique_id = f"{sys_sn[-11:].lower() if sys_sn != 'All' else 'all'}_{unique_id}"
         self._attr_icon = icon
         self._attr_native_min_value = min_value
         self._attr_native_max_value = max_value
@@ -66,17 +64,13 @@ class ByteWattNumberEntity(CoordinatorEntity, NumberEntity):
     @property
     def device_info(self):
         """Return device info."""
-        username = self._config_entry.data.get("username", "Unknown")
         sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
-
-        device_name = f"Byte-Watt Battery ({username}) - {sys_sn}"
 
         return {
             "identifiers": {(DOMAIN, self._config_entry.entry_id)},
-            "name": device_name,
+            "name": sys_sn,
             "manufacturer": "ByteWatt",
             "model": "Battery Management System",
-            "sw_version": "1.0.0",
         }
 
 

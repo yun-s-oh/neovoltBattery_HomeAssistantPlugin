@@ -319,11 +319,8 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
         self._attribute = attribute
         sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
         self._attr_name = name
-        self._attr_has_entity_name = True
-        if sys_sn != "All":
-            self._attr_unique_id = f"{config_entry.entry_id}_{sensor_type}_{sys_sn.lower()}"
-        else:
-            self._attr_unique_id = f"{config_entry.entry_id}_{sensor_type}"
+        self._attr_has_entity_name = False
+        self._attr_unique_id = f"{sys_sn[-11:].lower() if sys_sn != 'All' else 'all'}_{sensor_type}"
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = unit
         self._attr_icon = icon
@@ -332,11 +329,14 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Return device info."""
-        # Safely get username from config entry data
-        username = self._config_entry.data.get("username", "Unknown")
         sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
 
-        device_name = f"Byte-Watt Battery ({username}) - {sys_sn}"
+        if sys_sn != "All":
+            # Use the last 11 characters of the serial for a cleaner device name.
+            device_name = sys_sn[-11:].upper()
+        else:
+            # Fallback for the "All" case
+            device_name = "Byte-Watt"
 
         return {
             "identifiers": {(DOMAIN, self._config_entry.entry_id)},
