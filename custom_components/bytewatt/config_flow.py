@@ -1,4 +1,5 @@
 """Config flow for Byte-Watt integration."""
+
 import logging
 import voluptuous as vol
 
@@ -8,17 +9,18 @@ from homeassistant.helpers import config_validation as cv
 
 from .bytewatt_client import ByteWattClient
 from .const import (
-    DOMAIN, 
-    CONF_USERNAME, 
+    DOMAIN,
+    CONF_USERNAME,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_SERIAL_NUMBER,
     CONF_SYSTEM_ID,
     DEFAULT_SCAN_INTERVAL,
-    MIN_SCAN_INTERVAL
+    MIN_SCAN_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Byte-Watt."""
@@ -86,14 +88,15 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 system_id = ""
             else:
                 inverter = next(
-                    (inv for inv in self.inverters if inv["sysSn"] == serial_number), None
+                    (inv for inv in self.inverters if inv["sysSn"] == serial_number),
+                    None,
                 )
                 if inverter:
                     system_id = inverter.get("systemId")
                 else:
                     # Handle case where inverter is not found (should not happen)
                     return self.async_abort(reason="inverter_not_found")
-            
+
             self.user_input[CONF_SYSTEM_ID] = system_id
             self.user_input.update(user_input)
             title = (
@@ -111,13 +114,15 @@ class ByteWattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if self.inverters:
             for inverter in self.inverters:
-                if inverter['sysSn'] not in configured_serials:
-                    inverter_choices[inverter['sysSn']] = inverter['sysSn']
+                if inverter["sysSn"] not in configured_serials:
+                    inverter_choices[inverter["sysSn"]] = inverter["sysSn"]
 
         if not inverter_choices:
             return self.async_abort(reason="no_inverters_left")
 
-        default_inverter = "All" if "All" in inverter_choices else next(iter(inverter_choices))
+        default_inverter = (
+            "All" if "All" in inverter_choices else next(iter(inverter_choices))
+        )
         return self.async_show_form(
             step_id="inverter",
             data_schema=vol.Schema(

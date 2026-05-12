@@ -1,4 +1,5 @@
 """Data models for the Byte-Watt integration."""
+
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
 
@@ -6,6 +7,7 @@ from typing import Dict, Any, Optional, List
 @dataclass
 class SoCData:
     """Represents battery State of Charge data."""
+
     soc: float = 0
     grid_consumption: float = 0
     battery: float = 0
@@ -29,6 +31,7 @@ class SoCData:
 @dataclass
 class GridData:
     """Represents grid energy data."""
+
     total_solar_generation: float = 0
     total_feed_in: float = 0
     total_battery_charge: float = 0
@@ -58,6 +61,7 @@ class GridData:
 @dataclass
 class BatterySettings:
     """Represents battery settings."""
+
     grid_charge: int = 1
     ctr_dis: int = 1
     bat_use_cap: int = 6  # Minimum remaining SOC
@@ -71,7 +75,7 @@ class BatterySettings:
     time_dise2a: str = "10:00"
     bat_high_cap: str = "100"
     last_updated: Optional[str] = None
-    
+
     # Weekend settings
     time_cha_fwe1a: str = "00:00"
     time_cha_ewe1a: str = "00:00"
@@ -81,28 +85,28 @@ class BatterySettings:
     time_dis_ewe1a: str = "00:00"
     time_dis_fwe2a: str = "00:00"
     time_dis_ewe2a: str = "00:00"
-    
+
     # Peak settings
     peak_s1a: str = "00:00"
     peak_e1a: str = "00:00"
     peak_s2a: str = "00:00"
     peak_e2a: str = "00:00"
-    
+
     # Fill settings
     fill_s1a: str = "00:00"
     fill_e1a: str = "00:00"
     fill_s2a: str = "00:00"
     fill_e2a: str = "00:00"
-    
+
     # Offset settings
     pm_offset_s1a: str = "00:00"
     pm_offset_e1a: str = "00:00"
     pm_offset_s2a: str = "00:00"
     pm_offset_e2a: str = "00:00"
-    
+
     # Additional fields
     additional_fields: Dict[str, Any] = field(default_factory=dict)
-    
+
     @classmethod
     def from_api_response(cls, data: Dict[str, Any]) -> "BatterySettings":
         """Create a BatterySettings instance from the new API response."""
@@ -140,39 +144,109 @@ class BatterySettings:
             pm_offset_s2a=data.get("pm_offset_s2a", "00:00"),
             pm_offset_e2a=data.get("pm_offset_e2a", "00:00"),
         )
-        
+
         # Store additional fields
         additional_fields = {}
         for field in [
-            "sys_sn", "ems_version", "charge_workdays", "bakbox_ver",
-            "charge_weekend", "grid_Charge_we", "bat_highcap_we",
-            "ctr_dis_we", "bat_usecap_we", "basic_mode_jp", "peace_mode_jp",
-            "vpp_mode_jp", "channel1", "control_mode1", "start_time1a", 
-            "end_time1a", "start_time1b", "end_time1b", "date1", 
-            "charge_soc1", "ups1", "switch_on1", "switch_off1", 
-            "delay1", "duration1", "pause1", "channel2", "control_mode2", 
-            "start_time2a", "end_time2a", "start_time2b", "end_time2b", 
-            "date2", "charge_soc2", "ups2", "switch_on2", "switch_off2", 
-            "delay2", "duration2", "pause2", "l1_priority", "l2_priority", 
-            "l3_priority", "l1_soc_limit", "l2_soc_limit", "l3_soc_limit", 
-            "charge_mode2", "charge_mode1", "backupbox", "minv", "mbat", 
-            "generator", "gc_output_mode", "generator_mode", "gc_soc_start", 
-            "gc_soc_end", "gc_time_start", "gc_time_end", "gc_charge_power", 
-            "gc_rated_power", "dg_cap", "dg_frequency", "gc_rate_percent", 
-            "chargingpile", "currentsetting", "chargingmode", "charging_pile_list", 
-            "chargingpile_control_open", "peak_fill_en", "peakvalue", "fillvalue", 
-            "delta", "pm_offset", "pm_max", "pm_offset_en", "stoinv_type", 
-            "loadcut_soc", "loadtied_soc", "ac_tied", "soc_50_flag", 
-            "auto_soccalib_en", "three_unbalance_en", "enable_current_set", 
-            "enable_obc_set", "upsReserve", "columnIsSow", "nmi", "state", 
-            "agent", "country_code", "register_dynamic_export", "register_type"
+            "sys_sn",
+            "ems_version",
+            "charge_workdays",
+            "bakbox_ver",
+            "charge_weekend",
+            "grid_Charge_we",
+            "bat_highcap_we",
+            "ctr_dis_we",
+            "bat_usecap_we",
+            "basic_mode_jp",
+            "peace_mode_jp",
+            "vpp_mode_jp",
+            "channel1",
+            "control_mode1",
+            "start_time1a",
+            "end_time1a",
+            "start_time1b",
+            "end_time1b",
+            "date1",
+            "charge_soc1",
+            "ups1",
+            "switch_on1",
+            "switch_off1",
+            "delay1",
+            "duration1",
+            "pause1",
+            "channel2",
+            "control_mode2",
+            "start_time2a",
+            "end_time2a",
+            "start_time2b",
+            "end_time2b",
+            "date2",
+            "charge_soc2",
+            "ups2",
+            "switch_on2",
+            "switch_off2",
+            "delay2",
+            "duration2",
+            "pause2",
+            "l1_priority",
+            "l2_priority",
+            "l3_priority",
+            "l1_soc_limit",
+            "l2_soc_limit",
+            "l3_soc_limit",
+            "charge_mode2",
+            "charge_mode1",
+            "backupbox",
+            "minv",
+            "mbat",
+            "generator",
+            "gc_output_mode",
+            "generator_mode",
+            "gc_soc_start",
+            "gc_soc_end",
+            "gc_time_start",
+            "gc_time_end",
+            "gc_charge_power",
+            "gc_rated_power",
+            "dg_cap",
+            "dg_frequency",
+            "gc_rate_percent",
+            "chargingpile",
+            "currentsetting",
+            "chargingmode",
+            "charging_pile_list",
+            "chargingpile_control_open",
+            "peak_fill_en",
+            "peakvalue",
+            "fillvalue",
+            "delta",
+            "pm_offset",
+            "pm_max",
+            "pm_offset_en",
+            "stoinv_type",
+            "loadcut_soc",
+            "loadtied_soc",
+            "ac_tied",
+            "soc_50_flag",
+            "auto_soccalib_en",
+            "three_unbalance_en",
+            "enable_current_set",
+            "enable_obc_set",
+            "upsReserve",
+            "columnIsSow",
+            "nmi",
+            "state",
+            "agent",
+            "country_code",
+            "register_dynamic_export",
+            "register_type",
         ]:
             if field in data:
                 additional_fields[field] = data[field]
-        
+
         settings.additional_fields = additional_fields
         return settings
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert settings to dictionary for API submissions using new API format."""
         result = {
@@ -190,7 +264,11 @@ class BatterySettings:
             "timeDise1": self.time_dise1a,
             "timeDisf2": self.time_disf2a,
             "timeDise2": self.time_dise2a,
-            "batHighCap": float(self.bat_high_cap) if isinstance(self.bat_high_cap, str) else self.bat_high_cap,
+            "batHighCap": (
+                float(self.bat_high_cap)
+                if isinstance(self.bat_high_cap, str)
+                else self.bat_high_cap
+            ),
             "batUseCap": self.bat_use_cap,
             "batCapRange": [5, 100],  # Default range
             "isJapaneseDevice": False,
@@ -209,8 +287,8 @@ class BatterySettings:
             "isSiteDevice": None,
             "isSupportOffGridSocControl": True,
         }
-        
+
         # Add additional fields
         result.update(self.additional_fields)
-        
+
         return result

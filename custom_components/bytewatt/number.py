@@ -1,4 +1,5 @@
 """Number entities for the Byte-Watt integration."""
+
 import logging
 from typing import Optional
 
@@ -53,7 +54,9 @@ class ByteWattNumberEntity(CoordinatorEntity, NumberEntity):
         self._friendly_name = name
         if sys_sn != "All":
             self._attr_name = f"{name} {sys_sn}"
-            self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
+            self._attr_unique_id = (
+                f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
+            )
         else:
             self._attr_name = name
             self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}"
@@ -111,7 +114,10 @@ class ByteWattMinimumSOCNumber(ByteWattNumberEntity):
         """Return the current minimum SOC value."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
                 settings = client.api_client._settings_cache
                 return float(getattr(settings, "bat_use_cap", 6))
         except (ValueError, TypeError, AttributeError) as ex:
@@ -158,7 +164,10 @@ class ByteWattChargeCapNumber(ByteWattNumberEntity):
         """Return the current charge cap value."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
                 settings = client.api_client._settings_cache
                 value = getattr(settings, "bat_high_cap", "100")
                 return float(value) if isinstance(value, (str, int, float)) else 100.0

@@ -1,4 +1,5 @@
 """Sensor platform for Byte-Watt integration."""
+
 import logging
 from typing import Callable, Dict, Optional, Any
 from datetime import datetime
@@ -43,6 +44,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -50,102 +52,102 @@ async def async_setup_entry(
 ):
     """Set up the Byte-Watt sensor platform."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    
+
     # Define SOC sensors
     soc_sensors = [
         ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_SOC, 
-            "Battery Percentage", 
-            "battery", 
-            "soc", 
-            "%", 
-            "mdi:battery"
+            coordinator,
+            entry,
+            SENSOR_SOC,
+            "Battery Percentage",
+            "battery",
+            "soc",
+            "%",
+            "mdi:battery",
         ),
         ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_GRID_CONSUMPTION, 
-            "Grid Consumption", 
-            "power", 
-            "pgrid", 
-            "W", 
-            "mdi:transmission-tower"
+            coordinator,
+            entry,
+            SENSOR_GRID_CONSUMPTION,
+            "Grid Consumption",
+            "power",
+            "pgrid",
+            "W",
+            "mdi:transmission-tower",
         ),
         ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_HOUSE_CONSUMPTION, 
-            "House Consumption", 
-            "power", 
-            "pload", 
-            "W", 
-            "mdi:home-lightning-bolt"
+            coordinator,
+            entry,
+            SENSOR_HOUSE_CONSUMPTION,
+            "House Consumption",
+            "power",
+            "pload",
+            "W",
+            "mdi:home-lightning-bolt",
         ),
         ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_BATTERY_POWER, 
-            "Battery Power", 
-            "power", 
-            "pbat", 
-            "W", 
-            "mdi:battery-charging"
+            coordinator,
+            entry,
+            SENSOR_BATTERY_POWER,
+            "Battery Power",
+            "power",
+            "pbat",
+            "W",
+            "mdi:battery-charging",
         ),
         ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_PV, 
-            "PV Power", 
-            "power", 
-            "ppv", 
-            "W", 
-            "mdi:solar-power"
+            coordinator,
+            entry,
+            SENSOR_PV,
+            "PV Power",
+            "power",
+            "ppv",
+            "W",
+            "mdi:solar-power",
         ),
         ByteWattLastUpdateSensor(
-            coordinator, 
-            entry, 
-            SENSOR_LAST_UPDATE, 
-            "Last Update", 
-            "timestamp", 
-            "", 
+            coordinator,
+            entry,
+            SENSOR_LAST_UPDATE,
+            "Last Update",
+            "timestamp",
+            "",
             "mdi:clock-outline",
-            entity_category=EntityCategory.DIAGNOSTIC
+            entity_category=EntityCategory.DIAGNOSTIC,
         ),
     ]
-    
+
     # Define grid stats sensors - modified to use "energy" device_class for kWh sensors
     grid_sensors = [
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_TOTAL_SOLAR, 
-            "Total Solar Generation", 
+            coordinator,
+            entry,
+            SENSOR_TOTAL_SOLAR,
+            "Total Solar Generation",
             "energy",  # Changed to "energy" for Energy Dashboard
-            "Total_Solar_Generation", 
-            "kWh", 
-            "mdi:solar-power"
+            "Total_Solar_Generation",
+            "kWh",
+            "mdi:solar-power",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_TOTAL_FEED_IN, 
-            "Total Feed In", 
+            coordinator,
+            entry,
+            SENSOR_TOTAL_FEED_IN,
+            "Total Feed In",
             "energy",  # Changed to "energy" for Energy Dashboard
-            "Total_Feed_In", 
-            "kWh", 
-            "mdi:transmission-tower-export"
+            "Total_Feed_In",
+            "kWh",
+            "mdi:transmission-tower-export",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_TOTAL_BATTERY_CHARGE, 
-            "Total Battery Charge", 
+            coordinator,
+            entry,
+            SENSOR_TOTAL_BATTERY_CHARGE,
+            "Total Battery Charge",
             "energy",  # Changed to "energy" for Energy Dashboard
-            "Total_Battery_Charge", 
-            "kWh", 
-            "mdi:battery-charging"
+            "Total_Battery_Charge",
+            "kWh",
+            "mdi:battery-charging",
         ),
         ByteWattGridSensor(
             coordinator,
@@ -155,145 +157,144 @@ async def async_setup_entry(
             "energy",
             "Total_Battery_Discharge",
             "kWh",
-            "mdi:battery-minus"
+            "mdi:battery-minus",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_PV_POWER_HOUSE, 
-            "PV Power to House", 
+            coordinator,
+            entry,
+            SENSOR_PV_POWER_HOUSE,
+            "PV Power to House",
             "energy",  # Changed to "energy" for Energy Dashboard
-            "PV_Power_House", 
-            "kWh", 
-            "mdi:solar-power-variant"
+            "PV_Power_House",
+            "kWh",
+            "mdi:solar-power-variant",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_PV_CHARGING_BATTERY, 
-            "PV Charging Battery", 
+            coordinator,
+            entry,
+            SENSOR_PV_CHARGING_BATTERY,
+            "PV Charging Battery",
             "energy",  # Changed to "energy" for Energy Dashboard
-            "PV_Charging_Battery", 
-            "kWh", 
-            "mdi:solar-power-variant-outline"
+            "PV_Charging_Battery",
+            "kWh",
+            "mdi:solar-power-variant-outline",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_TOTAL_HOUSE_CONSUMPTION, 
-            "Total House Consumption", 
+            coordinator,
+            entry,
+            SENSOR_TOTAL_HOUSE_CONSUMPTION,
+            "Total House Consumption",
             "energy",  # Changed to "energy" for Energy Dashboard
-            "Total_House_Consumption", 
-            "kWh", 
-            "mdi:home-lightning-bolt"
+            "Total_House_Consumption",
+            "kWh",
+            "mdi:home-lightning-bolt",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_GRID_BATTERY_CHARGE, 
-            "Grid Based Battery Charge", 
+            coordinator,
+            entry,
+            SENSOR_GRID_BATTERY_CHARGE,
+            "Grid Based Battery Charge",
             "energy",  # Changed to "energy" for Energy Dashboard
-            "Grid_Based_Battery_Charge", 
-            "kWh", 
-            "mdi:transmission-tower-import"
+            "Grid_Based_Battery_Charge",
+            "kWh",
+            "mdi:transmission-tower-import",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_GRID_POWER_CONSUMPTION, 
-            "Grid Power Consumption", 
+            coordinator,
+            entry,
+            SENSOR_GRID_POWER_CONSUMPTION,
+            "Grid Power Consumption",
             "energy",  # Changed to "energy" for Energy Dashboard
-            "Grid_Power_Consumption", 
-            "kWh", 
-            "mdi:transmission-tower"
+            "Grid_Power_Consumption",
+            "kWh",
+            "mdi:transmission-tower",
         ),
     ]
-    
-    
+
     # Define daily stats sensors
     daily_stats_sensors = [
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_PV_GENERATED_TODAY, 
-            "PV Generated Today", 
+            coordinator,
+            entry,
+            SENSOR_PV_GENERATED_TODAY,
+            "PV Generated Today",
             "energy",
-            "PV_Generated_Today", 
-            "kWh", 
-            "mdi:solar-power"
+            "PV_Generated_Today",
+            "kWh",
+            "mdi:solar-power",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_CONSUMED_TODAY, 
-            "Consumed Today", 
+            coordinator,
+            entry,
+            SENSOR_CONSUMED_TODAY,
+            "Consumed Today",
             "energy",
-            "Consumed_Today", 
-            "kWh", 
-            "mdi:home-lightning-bolt"
+            "Consumed_Today",
+            "kWh",
+            "mdi:home-lightning-bolt",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_FEED_IN_TODAY, 
-            "Feed In Today", 
+            coordinator,
+            entry,
+            SENSOR_FEED_IN_TODAY,
+            "Feed In Today",
             "energy",
-            "Feed_In_Today", 
-            "kWh", 
-            "mdi:transmission-tower-export"
+            "Feed_In_Today",
+            "kWh",
+            "mdi:transmission-tower-export",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_GRID_IMPORT_TODAY, 
-            "Grid Import Today", 
+            coordinator,
+            entry,
+            SENSOR_GRID_IMPORT_TODAY,
+            "Grid Import Today",
             "energy",
-            "Grid_Import_Today", 
-            "kWh", 
-            "mdi:transmission-tower-import"
+            "Grid_Import_Today",
+            "kWh",
+            "mdi:transmission-tower-import",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_BATTERY_CHARGED_TODAY, 
-            "Battery Charged Today", 
+            coordinator,
+            entry,
+            SENSOR_BATTERY_CHARGED_TODAY,
+            "Battery Charged Today",
             "energy",
-            "Battery_Charged_Today", 
-            "kWh", 
-            "mdi:battery-plus"
+            "Battery_Charged_Today",
+            "kWh",
+            "mdi:battery-plus",
         ),
         ByteWattGridSensor(
-            coordinator, 
-            entry, 
-            SENSOR_BATTERY_DISCHARGED_TODAY, 
-            "Battery Discharged Today", 
+            coordinator,
+            entry,
+            SENSOR_BATTERY_DISCHARGED_TODAY,
+            "Battery Discharged Today",
             "energy",
-            "Battery_Discharged_Today", 
-            "kWh", 
-            "mdi:battery-minus"
+            "Battery_Discharged_Today",
+            "kWh",
+            "mdi:battery-minus",
         ),
         ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_SELF_CONSUMPTION, 
-            "Self Consumption", 
+            coordinator,
+            entry,
+            SENSOR_SELF_CONSUMPTION,
+            "Self Consumption",
             None,  # No device class for percentage
-            "Self_Consumption", 
-            "%", 
-            "mdi:home-battery"
+            "Self_Consumption",
+            "%",
+            "mdi:home-battery",
         ),
         ByteWattSensor(
-            coordinator, 
-            entry, 
-            SENSOR_SELF_SUFFICIENCY, 
-            "Self Sufficiency", 
+            coordinator,
+            entry,
+            SENSOR_SELF_SUFFICIENCY,
+            "Self Sufficiency",
             None,  # No device class for percentage
-            "Self_Sufficiency", 
-            "%", 
-            "mdi:home-battery-outline"
+            "Self_Sufficiency",
+            "%",
+            "mdi:home-battery-outline",
         ),
     ]
-    
+
     async_add_entities(soc_sensors + grid_sensors + daily_stats_sensors)
 
 
@@ -321,7 +322,9 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
         self._friendly_name = name
         if sys_sn != "All":
             self._attr_name = f"{name} {sys_sn}"
-            self._attr_unique_id = f"{config_entry.entry_id}_{sensor_type}_{sys_sn.lower()}"
+            self._attr_unique_id = (
+                f"{config_entry.entry_id}_{sensor_type}_{sys_sn.lower()}"
+            )
         else:
             self._attr_name = name
             self._attr_unique_id = f"{config_entry.entry_id}_{sensor_type}"
@@ -357,21 +360,23 @@ class ByteWattSensor(CoordinatorEntity, SensorEntity):
         try:
             if not self.coordinator.data or "battery" not in self.coordinator.data:
                 return None
-            
+
             battery_data = self.coordinator.data["battery"]
             value = battery_data.get(self._attribute)
-            
+
             if value is None:
-                # First time encountering a missing attribute, log it at info level 
+                # First time encountering a missing attribute, log it at info level
                 # to help with troubleshooting new API responses
                 _LOGGER.debug(
                     f"Attribute '{self._attribute}' not found in battery data for {self._attr_name}. "
                     f"Available attributes: {list(battery_data.keys())}"
                 )
                 return None
-                
+
             # Return the value, converting string values to float if needed for numerical sensors
-            if self._attr_device_class == "power" and isinstance(value, (str, int, float)):
+            if self._attr_device_class == "power" and isinstance(
+                value, (str, int, float)
+            ):
                 try:
                     return float(value)
                 except (ValueError, TypeError):
@@ -399,15 +404,15 @@ class ByteWattGridSensor(ByteWattSensor):
     ):
         """Initialize the sensor."""
         super().__init__(
-            coordinator, 
-            config_entry, 
-            sensor_type, 
-            name, 
-            device_class, 
-            attribute, 
-            unit, 
+            coordinator,
+            config_entry,
+            sensor_type,
+            name,
+            device_class,
+            attribute,
+            unit,
             icon,
-            entity_category
+            entity_category,
         )
         # Add state_class for energy sensors (kWh)
         if unit == "kWh":
@@ -419,36 +424,38 @@ class ByteWattGridSensor(ByteWattSensor):
         try:
             if not self.coordinator.data or "battery" not in self.coordinator.data:
                 return None
-            
+
             # In the new API, all data is in the battery object
             # Try to find matching attributes in the battery data
             battery_data = self.coordinator.data["battery"]
-            
+
             # Handle special case for energy metrics which may be in a different format
             if self._attribute in battery_data:
                 return battery_data.get(self._attribute)
-            
+
             # If data isn't available, we'll log it at debug level
-            _LOGGER.debug(f"Grid sensor {self._attribute} data not found in battery response")
+            _LOGGER.debug(
+                f"Grid sensor {self._attribute} data not found in battery response"
+            )
             return None
         except Exception as ex:
             _LOGGER.error(f"Error getting grid sensor state: {ex}")
             return None
-            
+
     @property
     def available(self) -> bool:
         """Return if entity is available."""
         # Many grid sensors may not be available in the new API
         if not self.coordinator.data or "battery" not in self.coordinator.data:
             return False
-            
+
         # Check if this attribute exists in the data
         return self._attribute in self.coordinator.data["battery"]
 
 
 class ByteWattLastUpdateSensor(ByteWattSensor):
     """Representation of a Byte-Watt Last Update Sensor that doesn't rely on createTime."""
-    
+
     def __init__(
         self,
         coordinator,
@@ -462,31 +469,35 @@ class ByteWattLastUpdateSensor(ByteWattSensor):
     ):
         """Initialize the Last Update sensor."""
         super().__init__(
-            coordinator, 
-            config_entry, 
-            sensor_type, 
-            name, 
-            device_class, 
+            coordinator,
+            config_entry,
+            sensor_type,
+            name,
+            device_class,
             "last_update",  # Use a custom attribute name
-            unit, 
+            unit,
             icon,
-            entity_category
+            entity_category,
         )
 
     @property
     def native_value(self):
         """Return the last update time based on coordinator's last successful update."""
         try:
-            if hasattr(self.coordinator, '_last_successful_update') and self.coordinator._last_successful_update:
+            if (
+                hasattr(self.coordinator, "_last_successful_update")
+                and self.coordinator._last_successful_update
+            ):
                 return self.coordinator._last_successful_update
             return None
         except Exception as ex:
             _LOGGER.error(f"Error getting last update time: {ex}")
             return None
-    
+
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return hasattr(self.coordinator, '_last_successful_update') and self.coordinator._last_successful_update is not None
-
-
+        return (
+            hasattr(self.coordinator, "_last_successful_update")
+            and self.coordinator._last_successful_update is not None
+        )

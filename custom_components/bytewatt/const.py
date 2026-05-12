@@ -35,7 +35,9 @@ SERVICE_SET_CHARGE_END_TIME = "set_charge_end_time"
 SERVICE_SET_MINIMUM_SOC = "set_minimum_soc"
 SERVICE_SET_CHARGE_CAP = "set_charge_cap"
 SERVICE_UPDATE_BATTERY_SETTINGS = "update_battery_settings"
-SERVICE_FORCE_RECONNECT = "force_reconnect"  # Force client reconnection for troubleshooting
+SERVICE_FORCE_RECONNECT = (
+    "force_reconnect"  # Force client reconnection for troubleshooting
+)
 SERVICE_HEALTH_CHECK = "health_check"  # Check connection health and return diagnostics
 SERVICE_TOGGLE_DIAGNOSTICS = "toggle_diagnostics"  # Toggle diagnostic logging
 

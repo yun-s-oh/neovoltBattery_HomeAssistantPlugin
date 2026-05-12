@@ -1,4 +1,5 @@
 """Time entities for the Byte-Watt integration."""
+
 import logging
 from datetime import time
 from typing import Optional
@@ -53,7 +54,9 @@ class ByteWattTimeEntity(CoordinatorEntity, TimeEntity):
         self._friendly_name = name
         if sys_sn != "All":
             self._attr_name = f"{name} {sys_sn}"
-            self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
+            self._attr_unique_id = (
+                f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
+            )
         else:
             self._attr_name = name
             self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}"
@@ -118,7 +121,10 @@ class ByteWattChargeStartTime(ByteWattTimeEntity):
         """Return the current charge start time."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
                 settings = client.api_client._settings_cache
                 time_str = getattr(settings, self._attribute_name, "14:30")
                 return self._parse_time_string(time_str)
@@ -162,7 +168,10 @@ class ByteWattChargeEndTime(ByteWattTimeEntity):
         """Return the current charge end time."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
                 settings = client.api_client._settings_cache
                 time_str = getattr(settings, self._attribute_name, "16:00")
                 return self._parse_time_string(time_str)
@@ -206,7 +215,10 @@ class ByteWattDischargeStartTime(ByteWattTimeEntity):
         """Return the current discharge start time."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
                 settings = client.api_client._settings_cache
                 time_str = getattr(settings, self._attribute_name, "16:00")
                 return self._parse_time_string(time_str)
@@ -219,7 +231,9 @@ class ByteWattDischargeStartTime(ByteWattTimeEntity):
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
             time_str = self._format_time_for_api(value)
-            success = await client.update_battery_settings(discharge_start_time=time_str)
+            success = await client.update_battery_settings(
+                discharge_start_time=time_str
+            )
             if success:
                 _LOGGER.info(f"Successfully updated discharge start time to {time_str}")
                 await self.coordinator.async_request_refresh()
@@ -250,7 +264,10 @@ class ByteWattDischargeEndTime(ByteWattTimeEntity):
         """Return the current discharge end time."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
                 settings = client.api_client._settings_cache
                 time_str = getattr(settings, self._attribute_name, "23:00")
                 return self._parse_time_string(time_str)

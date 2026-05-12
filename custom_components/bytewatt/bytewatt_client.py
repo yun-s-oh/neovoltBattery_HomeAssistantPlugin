@@ -1,4 +1,5 @@
 """Client for interacting with the Byte-Watt API."""
+
 import logging
 from typing import Dict, Any, Optional, List
 import asyncio
@@ -13,8 +14,14 @@ _LOGGER = logging.getLogger(__name__)
 
 class ByteWattClient:
     """Client for interacting with the Byte-Watt API."""
-    
-    def __init__(self, hass: HomeAssistant, username: str, password: str, system_id: Optional[str] = None):
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        username: str,
+        password: str,
+        system_id: Optional[str] = None,
+    ):
         """Initialize with login credentials."""
         self.hass = hass
         self.username = username
@@ -22,12 +29,12 @@ class ByteWattClient:
         self.system_id = system_id
         self.api_client = NeovoltClient(hass, username, password, system_id=system_id)
         self.lock = self.hass.data[DOMAIN][API_LOCK]
-    
+
     async def initialize(self) -> bool:
         """Initialize or re-initialize the client."""
         async with self.lock:
             return await self.api_client.async_login()
-    
+
     async def get_inverter_list(self) -> Optional[List[Dict[str, Any]]]:
         """Get the list of inverters."""
         async with self.lock:
@@ -38,25 +45,29 @@ class ByteWattClient:
         async with self.lock:
             return await self.api_client.async_get_battery_settings(system_id)
 
-    async def get_battery_data(self, station_id: str = None) -> Optional[Dict[str, Any]]:
+    async def get_battery_data(
+        self, station_id: str = None
+    ) -> Optional[Dict[str, Any]]:
         """Get battery data from the API."""
         async with self.lock:
             return await self.api_client.async_get_battery_data(station_id)
-    
+
     async def get_device_list(self) -> Optional[Dict[str, Any]]:
         """Get list of devices from the API."""
         async with self.lock:
             return await self.api_client.async_get_device_list()
-    
-    async def update_battery_settings(self, 
-                                    discharge_start_time: str = None,
-                                    discharge_end_time: str = None,
-                                    charge_start_time: str = None,
-                                    charge_end_time: str = None,
-                                    minimum_soc: int = None,
-                                    charge_cap: int = None,
-                                    discharge_time_control: bool = None,
-                                    grid_charging: bool = None) -> bool:
+
+    async def update_battery_settings(
+        self,
+        discharge_start_time: str = None,
+        discharge_end_time: str = None,
+        charge_start_time: str = None,
+        charge_end_time: str = None,
+        minimum_soc: int = None,
+        charge_cap: int = None,
+        discharge_time_control: bool = None,
+        grid_charging: bool = None,
+    ) -> bool:
         """Update battery settings."""
         async with self.lock:
             return await self.api_client.async_update_battery_settings(
@@ -67,5 +78,5 @@ class ByteWattClient:
                 minimum_soc=minimum_soc,
                 charge_cap=charge_cap,
                 discharge_time_control=discharge_time_control,
-                grid_charging=grid_charging
+                grid_charging=grid_charging,
             )

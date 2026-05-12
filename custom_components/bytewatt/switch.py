@@ -1,4 +1,5 @@
 """Switch entities for the Byte-Watt integration."""
+
 import logging
 from typing import Optional, Any
 
@@ -50,7 +51,9 @@ class ByteWattSwitchEntity(CoordinatorEntity, SwitchEntity):
         self._friendly_name = name
         if sys_sn != "All":
             self._attr_name = f"{name} {sys_sn}"
-            self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
+            self._attr_unique_id = (
+                f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
+            )
         else:
             self._attr_name = name
             self._attr_unique_id = f"{config_entry.entry_id}_{unique_id}"
@@ -84,7 +87,10 @@ class ByteWattSwitchEntity(CoordinatorEntity, SwitchEntity):
         """Return true if the switch is on."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            if hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache:
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
                 settings = client.api_client._settings_cache
                 value = getattr(settings, self._attribute, None)
                 if value is not None:
@@ -99,7 +105,10 @@ class ByteWattSwitchEntity(CoordinatorEntity, SwitchEntity):
         """Return if entity is available."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            return hasattr(client.api_client, "_settings_cache") and client.api_client._settings_cache is not None
+            return (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache is not None
+            )
         except Exception:
             return False
 
@@ -137,10 +146,10 @@ class ByteWattDischargeControlSwitch(ByteWattSwitchEntity):
         """Set the discharge control state."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            
+
             # Use the client's update method with the discharge_time_control parameter
             success = await client.update_battery_settings(discharge_time_control=state)
-            
+
             if success:
                 action = "enabled" if state else "disabled"
                 _LOGGER.info(f"Successfully {action} discharge time control")
@@ -174,10 +183,10 @@ class ByteWattGridChargeSwitch(ByteWattSwitchEntity):
         """Set the grid charging state."""
         try:
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
-            
+
             # Use the client's update method with the grid_charging parameter
             success = await client.update_battery_settings(grid_charging=state)
-            
+
             if success:
                 action = "enabled" if state else "disabled"
                 _LOGGER.info(f"Successfully {action} grid charging")
