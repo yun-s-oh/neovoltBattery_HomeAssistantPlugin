@@ -6,7 +6,10 @@
 .venv/
 
 # Antigravity specific
-.antigravity/.env/
+.antigravity/.env
 .antigravity/state.json
 .antigravity/logs/*
 !.antigravity/logs/changelog.md
+
+# Home Assistant local config
+config/

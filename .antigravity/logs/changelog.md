@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
 - Migrated skills and workflows from `.antigravity/` to `.agents/` (standard location):
   - `skills/auth-handshake.md`, `skills/circuit-breaker.md` → `.agents/skills/`
   - `add-sensor.md`, `add-service.md`, `api-testing.md`, `code-validation.md`, `error-handling.md` → `.agents/workflows/`
-  - Added YAML frontmatter (`description:`) to all files for Antigravity compatibility.
+  - Fixed `KeyError: 'bytewatt'` crash in `config_flow` by ensuring `hass.data[DOMAIN]` and `API_LOCK` are initialized in `ByteWattClient`.
+- Improved config flow error handling with specific translations for connection issues and unexpected errors.
 
-
+## 2026-05-13
+- Updated Battery UPS Reserve Enable logic to derive from `upsReserve` value (0=False, 1=True) instead of `upsReserveEnable` boolean.
+- Removed "Battery Off-Grid SOC Control" switch and configuration options as they are no longer required.
+- Cleaned up API parameters and models to reflect these changes.

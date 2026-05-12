@@ -74,6 +74,7 @@ class BatterySettings:
     time_disf2a: str = "06:00"
     time_dise2a: str = "10:00"
     bat_high_cap: str = "100"
+    ups_reserve_enable: bool = False
     last_updated: Optional[str] = None
 
     # Weekend settings
@@ -143,6 +144,7 @@ class BatterySettings:
             pm_offset_e1a=data.get("pm_offset_e1a", "00:00"),
             pm_offset_s2a=data.get("pm_offset_s2a", "00:00"),
             pm_offset_e2a=data.get("pm_offset_e2a", "00:00"),
+            ups_reserve_enable=bool(int(data.get("upsReserve", 0))),
         )
 
         # Store additional fields
@@ -270,10 +272,10 @@ class BatterySettings:
                 else self.bat_high_cap
             ),
             "batUseCap": self.bat_use_cap,
-            "batCapRange": [5, 100],  # Default range
+            "batCapRange": [0, 100],  # Default range
             "isJapaneseDevice": False,
-            "upsReserveEnable": True,
-            "upsReserve": 1,
+            "upsReserveEnable": self.ups_reserve_enable,
+            "upsReserve": 1 if self.ups_reserve_enable else 0,
             "mbat": "BW-BAT-10.1P",  # Default battery model
             "chargeModeSetting": 0,
             "loadcutoutEn": 0,
@@ -285,7 +287,6 @@ class BatterySettings:
             "timeExpLimW1": 800,
             "timeExpLimW2": 800,
             "isSiteDevice": None,
-            "isSupportOffGridSocControl": True,
         }
 
         # Add additional fields

@@ -34,11 +34,28 @@ This integration allows you to monitor and control your Byte-Watt battery system
    - Click "Add Integration"
    - Search for "Byte-Watt Battery Monitor"
 
-### Manual Installation
-
-1. Copy the `custom_components/bytewatt` directory to your Home Assistant `custom_components` directory
-2. Restart Home Assistant
 3. Add the integration through Configuration → Integrations
+
+## Development Environment
+
+For development, it is recommended to use Docker to avoid deprecation warnings associated with Home Assistant Core (venv) installations.
+
+### Running with Docker Compose (Recommended)
+
+1. Ensure you have [Docker](https://www.docker.com/) and [Docker Compose](https://docs.docker.com/compose/) installed.
+2. Run the following command in the project root:
+   ```bash
+   docker-compose up -d
+   ```
+3. Access Home Assistant at [http://localhost:8123](http://localhost:8123).
+4. The `custom_components` directory is live-mounted, so any changes to the code will be reflected after a Home Assistant restart.
+
+### Running with venv (Deprecated)
+
+While still possible, running from a virtual environment is deprecated by Home Assistant:
+```bash
+./venv/bin/hass -c config
+```
 
 ## Configuration
 
