@@ -10,6 +10,7 @@ import logging
 import json
 import requests
 from datetime import datetime
+from dotenv import load_dotenv
 
 # Add the parent directory to the path so we can import for test_auth.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -137,12 +138,23 @@ def print_inverter_list(data: dict) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python test_inverter_list.py <username> <password>")
-        sys.exit(1)
+    load_dotenv()
+    
+    username = os.getenv("BYTEWATT_EMAIL")
+    password = os.getenv("BYTEWATT_PASSWORD")
 
-    username = sys.argv[1]
-    password = sys.argv[2]
+    if not username or not password:
+        if len(sys.argv) < 3:
+            print("Usage: python test_inverter_list.py <username> <password>")
+            print("Or provide BYTEWATT_EMAIL and BYTEWATT_PASSWORD in .env")
+            sys.exit(1)
+        username = sys.argv[1]
+        password = sys.argv[2]
+    else:
+        # Allow overriding with sys.argv
+        if len(sys.argv) >= 3:
+            username = sys.argv[1]
+            password = sys.argv[2]
 
     # Login to get token
     token = login(username, password)

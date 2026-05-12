@@ -8,3 +8,15 @@ All notable changes to this project will be documented in this file.
   - Instructions and style guidelines moved to `.antigravity/instructions.md`.
   - Architecture and historical context moved to `.antigravity/context.md`.
 - Initialized `.antigravity/logs` directory and `changelog.md` to track future changes.
+- Created `.antigravity/workflows/api_testing.md` to standardize testing using `.env`.
+- Created `.antigravity/skills.md` to document reusable domain knowledge and patterns.
+- Reorganized `.antigravity/` to follow standard structure:
+  - Split `skills.md` → `skills/auth_handshake.md`, `skills/circuit_breaker.md`.
+  - Split `workflows.md` → `workflows/add_sensor.md`, `workflows/add_service.md`, `workflows/code_validation.md`, `workflows/error_handling.md`.
+  - Updated `instructions.md` as the central index linking all files.
+- Migrated skills and workflows from `.antigravity/` to `.agents/` (standard location):
+  - `skills/auth-handshake.md`, `skills/circuit-breaker.md` → `.agents/skills/`
+  - `add-sensor.md`, `add-service.md`, `api-testing.md`, `code-validation.md`, `error-handling.md` → `.agents/workflows/`
+  - Added YAML frontmatter (`description:`) to all files for Antigravity compatibility.
+
+

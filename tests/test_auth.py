@@ -9,6 +9,8 @@ import base64
 import hashlib
 import json
 import requests
+import os
+from dotenv import load_dotenv
 from Crypto.Cipher import AES
 
 # Configure logging
@@ -193,13 +195,27 @@ def test_api_login_fallback(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python simple_auth_test.py <username> <password> [base_url]")
-        sys.exit(1)
+    load_dotenv()
+    
+    username = os.getenv("BYTEWATT_EMAIL")
+    password = os.getenv("BYTEWATT_PASSWORD")
+    base_url = "https://monitor.byte-watt.com"
 
-    username = sys.argv[1]
-    password = sys.argv[2]
-    base_url = sys.argv[3] if len(sys.argv) > 3 else "https://monitor.byte-watt.com"
+    if not username or not password:
+        if len(sys.argv) < 3:
+            print("Usage: python test_auth.py <username> <password> [base_url]")
+            print("Or provide BYTEWATT_EMAIL and BYTEWATT_PASSWORD in .env")
+            sys.exit(1)
+        username = sys.argv[1]
+        password = sys.argv[2]
+        base_url = sys.argv[3] if len(sys.argv) > 3 else base_url
+    else:
+        # Override with args if provided
+        if len(sys.argv) >= 3:
+            username = sys.argv[1]
+            password = sys.argv[2]
+            if len(sys.argv) > 3:
+                base_url = sys.argv[3]
 
     print("\nTesting encryption function...")
     if test_encryption():

@@ -10,6 +10,7 @@ import logging
 import json
 import requests
 from datetime import datetime
+from dotenv import load_dotenv
 
 # Add the parent directory to the path so we can import for test_auth.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -165,13 +166,28 @@ def print_battery_values(data: dict) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python test_battery_data.py <username> <password> [station_id]")
-        sys.exit(1)
+    load_dotenv()
+    
+    username = os.getenv("BYTEWATT_EMAIL")
+    password = os.getenv("BYTEWATT_PASSWORD")
+    station_id = None
 
-    username = sys.argv[1]
-    password = sys.argv[2]
-    station_id = sys.argv[3] if len(sys.argv) > 3 else None
+    if not username or not password:
+        if len(sys.argv) < 3:
+            print("Usage: python test_battery_data.py <username> <password> [station_id]")
+            print("Or provide BYTEWATT_EMAIL and BYTEWATT_PASSWORD in .env")
+            sys.exit(1)
+        username = sys.argv[1]
+        password = sys.argv[2]
+        station_id = sys.argv[3] if len(sys.argv) > 3 else None
+    else:
+        # Allow overriding station_id or credentials with args
+        if len(sys.argv) >= 3:
+            username = sys.argv[1]
+            password = sys.argv[2]
+            station_id = sys.argv[3] if len(sys.argv) > 3 else None
+        elif len(sys.argv) == 2:
+            station_id = sys.argv[1]
 
     # Login to get token
     token = login(username, password)
