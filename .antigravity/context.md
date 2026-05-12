@@ -67,10 +67,15 @@ custom_components/bytewatt/
 6. **HACS Compatible**: Installable through Home Assistant Community Store
 
 ### Services Available
-- `bytewatt.set_discharge_time` - Set battery discharge end time
-- `bytewatt.set_discharge_start_time` - Set battery discharge start time  
-- `bytewatt.set_charge_start_time` - Set battery charge start time
-- `bytewatt.set_charge_end_time` - Set battery charge end time
+- `bytewatt.set_discharge_time` - Set battery discharge end time (legacy)
+- `bytewatt.set_discharge_start_time` - Set battery discharge start time 1
+- `bytewatt.set_discharge_end_time1` - Set battery discharge end time 1
+- `bytewatt.set_charge_start_time` - Set battery charge start time 1
+- `bytewatt.set_charge_end_time` - Set battery charge end time 1
+- `bytewatt.set_discharge_start_time_2` - Set battery discharge start time 2
+- `bytewatt.set_discharge_end_time_2` - Set battery discharge end time 2
+- `bytewatt.set_charge_start_time_2` - Set battery charge start time 2
+- `bytewatt.set_charge_end_time_2` - Set battery charge end time 2
 - `bytewatt.set_minimum_soc` - Set minimum state of charge
 - `bytewatt.update_battery_settings` - Update multiple settings at once
 - `bytewatt.force_reconnect` - Force API reconnection

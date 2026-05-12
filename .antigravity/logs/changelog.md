@@ -21,6 +21,10 @@ All notable changes to this project will be documented in this file.
 - Improved config flow error handling with specific translations for connection issues and unexpected errors.
 
 ## 2026-05-13
+- Added Docker support to project setup.
 - Updated Battery UPS Reserve Enable logic to derive from `upsReserve` value (0=False, 1=True) instead of `upsReserveEnable` boolean.
 - Removed "Battery Off-Grid SOC Control" switch and configuration options as they are no longer required.
 - Cleaned up API parameters and models to reflect these changes.
+- Added support for secondary charge and discharge time controls, enabling two configurable windows.
+- Renamed existing single time settings to "1" (e.g., Charge Start Time 1) and added matching "2" settings.
+- Enforced strict documentation updates across `.agents` and `.antigravity` via new `documentation-updates.md` rule.

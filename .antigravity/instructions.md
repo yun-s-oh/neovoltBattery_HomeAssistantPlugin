@@ -18,6 +18,11 @@ The Core installation method is deprecated. Only use for quick tests:
 ./venv/bin/hass -c config
 ```
 
-## Logs
+## Documentation & Logs
 
-- [Changelog](logs/changelog.md) — Always log notable changes here.
+**CRITICAL INSTRUCTION:** Whenever you make code or configuration changes, you MUST synchronously update the following documentation files in the same turn:
+
+- [Context](context.md) — Update architectural details, services, or new features.
+- [Changelog](logs/changelog.md) — Always log notable changes here immediately.
+
+See the `.agents/rules/documentation-updates.md` rule for more details.
