@@ -37,6 +37,10 @@ class BatterySettingsAPI:
         charge_end_time,
         minimum_soc,
         charge_cap=None,
+        discharge_start_time_2=None,
+        discharge_end_time_2=None,
+        charge_start_time_2=None,
+        charge_end_time_2=None,
     ):
         """
         Validate input parameters for battery settings.
@@ -58,6 +62,10 @@ class BatterySettingsAPI:
         discharge_end = sanitize_time_format(discharge_end_time)
         charge_start = sanitize_time_format(charge_start_time)
         charge_end = sanitize_time_format(charge_end_time)
+        discharge_start_2 = sanitize_time_format(discharge_start_time_2)
+        discharge_end_2 = sanitize_time_format(discharge_end_time_2)
+        charge_start_2 = sanitize_time_format(charge_start_time_2)
+        charge_end_2 = sanitize_time_format(charge_end_time_2)
 
         # Validate minimum SOC
         min_soc = None
@@ -94,6 +102,10 @@ class BatterySettingsAPI:
             charge_end,
             min_soc,
             max_charge_cap,
+            discharge_start_2,
+            discharge_end_2,
+            charge_start_2,
+            charge_end_2,
         )
 
     def validate_boolean_setting(self, value: any, setting_name: str) -> int:
@@ -264,6 +276,10 @@ class BatterySettingsAPI:
         charge_cap=None,
         discharge_time_control=None,
         grid_charging=None,
+        discharge_start_time_2=None,
+        discharge_end_time_2=None,
+        charge_start_time_2=None,
+        charge_end_time_2=None,
         max_retries: int = 5,
         retry_delay: int = 1,
     ) -> bool:
@@ -293,6 +309,10 @@ class BatterySettingsAPI:
             charge_end,
             min_soc,
             max_charge_cap,
+            discharge_start_2,
+            discharge_end_2,
+            charge_start_2,
+            charge_end_2,
         ) = self.validate_settings_input(
             discharge_start_time,
             discharge_end_time,
@@ -300,6 +320,10 @@ class BatterySettingsAPI:
             charge_end_time,
             minimum_soc,
             charge_cap,
+            discharge_start_time_2,
+            discharge_end_time_2,
+            charge_start_time_2,
+            charge_end_time_2,
         )
 
         # Validate boolean settings
@@ -316,6 +340,10 @@ class BatterySettingsAPI:
             and discharge_end is None
             and charge_start is None
             and charge_end is None
+            and discharge_start_2 is None
+            and discharge_end_2 is None
+            and charge_start_2 is None
+            and charge_end_2 is None
             and min_soc is None
             and max_charge_cap is None
             and ctr_dis_value is None
@@ -346,6 +374,22 @@ class BatterySettingsAPI:
         if charge_end is not None:
             settings.time_chae1a = charge_end
             _LOGGER.debug(f"Updating charge end time to {charge_end}")
+
+        if discharge_start_2 is not None:
+            settings.time_disf2a = discharge_start_2
+            _LOGGER.debug(f"Updating discharge start time 2 to {discharge_start_2}")
+
+        if discharge_end_2 is not None:
+            settings.time_dise2a = discharge_end_2
+            _LOGGER.debug(f"Updating discharge end time 2 to {discharge_end_2}")
+
+        if charge_start_2 is not None:
+            settings.time_chaf2a = charge_start_2
+            _LOGGER.debug(f"Updating charge start time 2 to {charge_start_2}")
+
+        if charge_end_2 is not None:
+            settings.time_chae2a = charge_end_2
+            _LOGGER.debug(f"Updating charge end time 2 to {charge_end_2}")
 
         if min_soc is not None:
             settings.bat_use_cap = min_soc

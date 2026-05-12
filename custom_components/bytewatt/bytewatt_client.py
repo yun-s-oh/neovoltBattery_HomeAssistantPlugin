@@ -67,6 +67,10 @@ class ByteWattClient:
         charge_cap: int = None,
         discharge_time_control: bool = None,
         grid_charging: bool = None,
+        discharge_start_time_2: str = None,
+        discharge_end_time_2: str = None,
+        charge_start_time_2: str = None,
+        charge_end_time_2: str = None,
     ) -> bool:
         """Update battery settings."""
         async with self.lock:
@@ -79,4 +83,8 @@ class ByteWattClient:
                 charge_cap=charge_cap,
                 discharge_time_control=discharge_time_control,
                 grid_charging=grid_charging,
+                discharge_start_time_2=discharge_start_time_2,
+                discharge_end_time_2=discharge_end_time_2,
+                charge_start_time_2=charge_start_time_2,
+                charge_end_time_2=charge_end_time_2,
             )

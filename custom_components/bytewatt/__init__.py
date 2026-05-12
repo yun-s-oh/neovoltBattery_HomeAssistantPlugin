@@ -49,8 +49,17 @@ from .const import (
     ATTR_START_DISCHARGE,
     ATTR_START_CHARGE,
     ATTR_END_CHARGE,
+    ATTR_END_DISCHARGE_2,
+    ATTR_START_DISCHARGE_2,
+    ATTR_START_CHARGE_2,
+    ATTR_END_CHARGE_2,
     ATTR_MINIMUM_SOC,
     ATTR_CHARGE_CAP,
+    SERVICE_SET_DISCHARGE_END_TIME1,
+    SERVICE_SET_DISCHARGE_START_TIME_2,
+    SERVICE_SET_DISCHARGE_END_TIME_2,
+    SERVICE_SET_CHARGE_START_TIME_2,
+    SERVICE_SET_CHARGE_END_TIME_2,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -482,6 +491,155 @@ async def register_battery_services(
 
         return success
 
+    # New service - set discharge end time
+    async def handle_set_discharge_end_time(call: ServiceCall):
+        """Handle the service call to set discharge end time."""
+        end_discharge = call.data.get(ATTR_END_DISCHARGE)
+        if not end_discharge:
+            _LOGGER.error("No end_discharge time provided")
+            return
+
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            discharge_end_time=end_discharge
+        )
+
+        if success:
+            _LOGGER.debug(f"Successfully set discharge end time to {end_discharge}")
+        else:
+            _LOGGER.error(f"Failed to set discharge end time to {end_discharge}")
+
+        return success
+
+    # New service - set discharge start time 2
+    async def handle_set_discharge_start_time_2(call: ServiceCall):
+        """Handle the service call to set discharge start time 2."""
+        start_discharge = call.data.get(ATTR_START_DISCHARGE_2)
+        if not start_discharge:
+            _LOGGER.error("No start_discharge_2 time provided")
+            return
+
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            discharge_start_time_2=start_discharge
+        )
+
+        if success:
+            _LOGGER.debug(f"Successfully set discharge start time 2 to {start_discharge}")
+        else:
+            _LOGGER.error(f"Failed to set discharge start time 2 to {start_discharge}")
+
+        return success
+
+    # New service - set discharge end time 2
+    async def handle_set_discharge_end_time_2(call: ServiceCall):
+        """Handle the service call to set discharge end time 2."""
+        end_discharge = call.data.get(ATTR_END_DISCHARGE_2)
+        if not end_discharge:
+            _LOGGER.error("No end_discharge_2 time provided")
+            return
+
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            discharge_end_time_2=end_discharge
+        )
+
+        if success:
+            _LOGGER.debug(f"Successfully set discharge end time 2 to {end_discharge}")
+        else:
+            _LOGGER.error(f"Failed to set discharge end time 2 to {end_discharge}")
+
+        return success
+
+    # New service - set charge start time 2
+    async def handle_set_charge_start_time_2(call: ServiceCall):
+        """Handle the service call to set charge start time 2."""
+        start_charge = call.data.get(ATTR_START_CHARGE_2)
+        if not start_charge:
+            _LOGGER.error("No start_charge_2 time provided")
+            return
+
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            charge_start_time_2=start_charge
+        )
+
+        if success:
+            _LOGGER.debug(f"Successfully set charge start time 2 to {start_charge}")
+        else:
+            _LOGGER.error(f"Failed to set charge start time 2 to {start_charge}")
+
+        return success
+
+    # New service - set charge end time 2
+    async def handle_set_charge_end_time_2(call: ServiceCall):
+        """Handle the service call to set charge end time 2."""
+        end_charge = call.data.get(ATTR_END_CHARGE_2)
+        if not end_charge:
+            _LOGGER.error("No end_charge_2 time provided")
+            return
+
+        # Get the first ByteWatt coordinator
+        coordinator = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            break
+
+        if not coordinator:
+            _LOGGER.error("No ByteWatt integration found")
+            return False
+
+        # Update battery settings
+        success = await coordinator.client.update_battery_settings(
+            charge_end_time_2=end_charge
+        )
+
+        if success:
+            _LOGGER.debug(f"Successfully set charge end time 2 to {end_charge}")
+        else:
+            _LOGGER.error(f"Failed to set charge end time 2 to {end_charge}")
+
+        return success
     # New service - update multiple battery settings at once
     async def handle_update_battery_settings(call: ServiceCall):
         """Handle the service call to update multiple battery settings at once."""
@@ -489,6 +647,10 @@ async def register_battery_services(
         discharge_end_time = call.data.get(ATTR_END_DISCHARGE)
         charge_start_time = call.data.get(ATTR_START_CHARGE)
         charge_end_time = call.data.get(ATTR_END_CHARGE)
+        discharge_start_time_2 = call.data.get(ATTR_START_DISCHARGE_2)
+        discharge_end_time_2 = call.data.get(ATTR_END_DISCHARGE_2)
+        charge_start_time_2 = call.data.get(ATTR_START_CHARGE_2)
+        charge_end_time_2 = call.data.get(ATTR_END_CHARGE_2)
         minimum_soc = call.data.get(ATTR_MINIMUM_SOC)
         charge_cap = call.data.get(ATTR_CHARGE_CAP)
 
@@ -498,6 +660,10 @@ async def register_battery_services(
             and discharge_end_time is None
             and charge_start_time is None
             and charge_end_time is None
+            and discharge_start_time_2 is None
+            and discharge_end_time_2 is None
+            and charge_start_time_2 is None
+            and charge_end_time_2 is None
             and minimum_soc is None
             and charge_cap is None
         ):
@@ -522,6 +688,10 @@ async def register_battery_services(
             charge_end_time=charge_end_time,
             minimum_soc=minimum_soc,
             charge_cap=charge_cap,
+            discharge_start_time_2=discharge_start_time_2,
+            discharge_end_time_2=discharge_end_time_2,
+            charge_start_time_2=charge_start_time_2,
+            charge_end_time_2=charge_end_time_2,
         )
 
         if success:
@@ -604,6 +774,61 @@ async def register_battery_services(
 
     hass.services.async_register(
         DOMAIN,
+        SERVICE_SET_DISCHARGE_END_TIME1,
+        handle_set_discharge_end_time,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_END_DISCHARGE): cv.string,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_DISCHARGE_START_TIME_2,
+        handle_set_discharge_start_time_2,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_START_DISCHARGE_2): cv.string,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_DISCHARGE_END_TIME_2,
+        handle_set_discharge_end_time_2,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_END_DISCHARGE_2): cv.string,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_CHARGE_START_TIME_2,
+        handle_set_charge_start_time_2,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_START_CHARGE_2): cv.string,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_CHARGE_END_TIME_2,
+        handle_set_charge_end_time_2,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_END_CHARGE_2): cv.string,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_UPDATE_BATTERY_SETTINGS,
         handle_update_battery_settings,
         schema=vol.Schema(
@@ -612,6 +837,10 @@ async def register_battery_services(
                 vol.Optional(ATTR_END_DISCHARGE): cv.string,
                 vol.Optional(ATTR_START_CHARGE): cv.string,
                 vol.Optional(ATTR_END_CHARGE): cv.string,
+                vol.Optional(ATTR_START_DISCHARGE_2): cv.string,
+                vol.Optional(ATTR_END_DISCHARGE_2): cv.string,
+                vol.Optional(ATTR_START_CHARGE_2): cv.string,
+                vol.Optional(ATTR_END_CHARGE_2): cv.string,
                 vol.Optional(ATTR_MINIMUM_SOC): vol.All(
                     vol.Coerce(int), vol.Range(min=1, max=100)
                 ),

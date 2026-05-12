@@ -26,10 +26,14 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
 
     entities = [
-        ByteWattChargeStartTime(coordinator, config_entry),
-        ByteWattChargeEndTime(coordinator, config_entry),
-        ByteWattDischargeStartTime(coordinator, config_entry),
-        ByteWattDischargeEndTime(coordinator, config_entry),
+        ByteWattChargeStartTime1(coordinator, config_entry),
+        ByteWattChargeEndTime1(coordinator, config_entry),
+        ByteWattDischargeStartTime1(coordinator, config_entry),
+        ByteWattDischargeEndTime1(coordinator, config_entry),
+        ByteWattChargeStartTime2(coordinator, config_entry),
+        ByteWattChargeEndTime2(coordinator, config_entry),
+        ByteWattDischargeStartTime2(coordinator, config_entry),
+        ByteWattDischargeEndTime2(coordinator, config_entry),
     ]
 
     async_add_entities(entities)
@@ -100,8 +104,8 @@ class ByteWattTimeEntity(CoordinatorEntity, TimeEntity):
         return f"{time_obj.hour:02d}:{time_obj.minute:02d}"
 
 
-class ByteWattChargeStartTime(ByteWattTimeEntity):
-    """Time entity for charge start time."""
+class ByteWattChargeStartTime1(ByteWattTimeEntity):
+    """Time entity for charge start time 1."""
 
     def __init__(
         self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
@@ -110,7 +114,7 @@ class ByteWattChargeStartTime(ByteWattTimeEntity):
         super().__init__(
             coordinator=coordinator,
             config_entry=config_entry,
-            name="Charge Start Time",
+            name="Charge Start Time 1",
             unique_id="charge_start_time",
             icon="mdi:battery-plus",
             attribute_name="time_chaf1a",
@@ -129,7 +133,7 @@ class ByteWattChargeStartTime(ByteWattTimeEntity):
                 time_str = getattr(settings, self._attribute_name, "14:30")
                 return self._parse_time_string(time_str)
         except Exception as ex:
-            _LOGGER.debug(f"Error getting charge start time: {ex}")
+            _LOGGER.debug(f"Error getting charge start time 1: {ex}")
         return None
 
     async def async_set_value(self, value: time) -> None:
@@ -139,16 +143,16 @@ class ByteWattChargeStartTime(ByteWattTimeEntity):
             time_str = self._format_time_for_api(value)
             success = await client.update_battery_settings(charge_start_time=time_str)
             if success:
-                _LOGGER.info(f"Successfully updated charge start time to {time_str}")
+                _LOGGER.info(f"Successfully updated charge start time 1 to {time_str}")
                 await self.coordinator.async_request_refresh()
             else:
-                _LOGGER.error(f"Failed to update charge start time to {time_str}")
+                _LOGGER.error(f"Failed to update charge start time 1 to {time_str}")
         except Exception as ex:
-            _LOGGER.error(f"Error setting charge start time to {value}: {ex}")
+            _LOGGER.error(f"Error setting charge start time 1 to {value}: {ex}")
 
 
-class ByteWattChargeEndTime(ByteWattTimeEntity):
-    """Time entity for charge end time."""
+class ByteWattChargeEndTime1(ByteWattTimeEntity):
+    """Time entity for charge end time 1."""
 
     def __init__(
         self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
@@ -157,7 +161,7 @@ class ByteWattChargeEndTime(ByteWattTimeEntity):
         super().__init__(
             coordinator=coordinator,
             config_entry=config_entry,
-            name="Charge End Time",
+            name="Charge End Time 1",
             unique_id="charge_end_time",
             icon="mdi:battery-plus-outline",
             attribute_name="time_chae1a",
@@ -176,7 +180,7 @@ class ByteWattChargeEndTime(ByteWattTimeEntity):
                 time_str = getattr(settings, self._attribute_name, "16:00")
                 return self._parse_time_string(time_str)
         except Exception as ex:
-            _LOGGER.debug(f"Error getting charge end time: {ex}")
+            _LOGGER.debug(f"Error getting charge end time 1: {ex}")
         return None
 
     async def async_set_value(self, value: time) -> None:
@@ -186,16 +190,16 @@ class ByteWattChargeEndTime(ByteWattTimeEntity):
             time_str = self._format_time_for_api(value)
             success = await client.update_battery_settings(charge_end_time=time_str)
             if success:
-                _LOGGER.info(f"Successfully updated charge end time to {time_str}")
+                _LOGGER.info(f"Successfully updated charge end time 1 to {time_str}")
                 await self.coordinator.async_request_refresh()
             else:
-                _LOGGER.error(f"Failed to update charge end time to {time_str}")
+                _LOGGER.error(f"Failed to update charge end time 1 to {time_str}")
         except Exception as ex:
-            _LOGGER.error(f"Error setting charge end time to {value}: {ex}")
+            _LOGGER.error(f"Error setting charge end time 1 to {value}: {ex}")
 
 
-class ByteWattDischargeStartTime(ByteWattTimeEntity):
-    """Time entity for discharge start time."""
+class ByteWattDischargeStartTime1(ByteWattTimeEntity):
+    """Time entity for discharge start time 1."""
 
     def __init__(
         self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
@@ -204,7 +208,7 @@ class ByteWattDischargeStartTime(ByteWattTimeEntity):
         super().__init__(
             coordinator=coordinator,
             config_entry=config_entry,
-            name="Discharge Start Time",
+            name="Discharge Start Time 1",
             unique_id="discharge_start_time",
             icon="mdi:battery-minus",
             attribute_name="time_disf1a",
@@ -223,7 +227,7 @@ class ByteWattDischargeStartTime(ByteWattTimeEntity):
                 time_str = getattr(settings, self._attribute_name, "16:00")
                 return self._parse_time_string(time_str)
         except Exception as ex:
-            _LOGGER.debug(f"Error getting discharge start time: {ex}")
+            _LOGGER.debug(f"Error getting discharge start time 1: {ex}")
         return None
 
     async def async_set_value(self, value: time) -> None:
@@ -235,16 +239,16 @@ class ByteWattDischargeStartTime(ByteWattTimeEntity):
                 discharge_start_time=time_str
             )
             if success:
-                _LOGGER.info(f"Successfully updated discharge start time to {time_str}")
+                _LOGGER.info(f"Successfully updated discharge start time 1 to {time_str}")
                 await self.coordinator.async_request_refresh()
             else:
-                _LOGGER.error(f"Failed to update discharge start time to {time_str}")
+                _LOGGER.error(f"Failed to update discharge start time 1 to {time_str}")
         except Exception as ex:
-            _LOGGER.error(f"Error setting discharge start time to {value}: {ex}")
+            _LOGGER.error(f"Error setting discharge start time 1 to {value}: {ex}")
 
 
-class ByteWattDischargeEndTime(ByteWattTimeEntity):
-    """Time entity for discharge end time."""
+class ByteWattDischargeEndTime1(ByteWattTimeEntity):
+    """Time entity for discharge end time 1."""
 
     def __init__(
         self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
@@ -253,7 +257,7 @@ class ByteWattDischargeEndTime(ByteWattTimeEntity):
         super().__init__(
             coordinator=coordinator,
             config_entry=config_entry,
-            name="Discharge End Time",
+            name="Discharge End Time 1",
             unique_id="discharge_end_time",
             icon="mdi:battery-minus-outline",
             attribute_name="time_dise1a",
@@ -272,7 +276,7 @@ class ByteWattDischargeEndTime(ByteWattTimeEntity):
                 time_str = getattr(settings, self._attribute_name, "23:00")
                 return self._parse_time_string(time_str)
         except Exception as ex:
-            _LOGGER.debug(f"Error getting discharge end time: {ex}")
+            _LOGGER.debug(f"Error getting discharge end time 1: {ex}")
         return None
 
     async def async_set_value(self, value: time) -> None:
@@ -282,9 +286,198 @@ class ByteWattDischargeEndTime(ByteWattTimeEntity):
             time_str = self._format_time_for_api(value)
             success = await client.update_battery_settings(discharge_end_time=time_str)
             if success:
-                _LOGGER.info(f"Successfully updated discharge end time to {time_str}")
+                _LOGGER.info(f"Successfully updated discharge end time 1 to {time_str}")
                 await self.coordinator.async_request_refresh()
             else:
-                _LOGGER.error(f"Failed to update discharge end time to {time_str}")
+                _LOGGER.error(f"Failed to update discharge end time 1 to {time_str}")
         except Exception as ex:
-            _LOGGER.error(f"Error setting discharge end time to {value}: {ex}")
+            _LOGGER.error(f"Error setting discharge end time 1 to {value}: {ex}")
+
+class ByteWattChargeStartTime2(ByteWattTimeEntity):
+    """Time entity for charge start time 2."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the charge start time 2 entity."""
+        super().__init__(
+            coordinator=coordinator,
+            config_entry=config_entry,
+            name="Charge Start Time 2",
+            unique_id="charge_start_time_2",
+            icon="mdi:battery-plus",
+            attribute_name="time_chaf2a",
+        )
+
+    @property
+    def native_value(self) -> Optional[time]:
+        """Return the current charge start time 2."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
+                settings = client.api_client._settings_cache
+                time_str = getattr(settings, self._attribute_name, "00:00")
+                return self._parse_time_string(time_str)
+        except Exception as ex:
+            _LOGGER.debug(f"Error getting charge start time 2: {ex}")
+        return None
+
+    async def async_set_value(self, value: time) -> None:
+        """Set the charge start time 2."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            time_str = self._format_time_for_api(value)
+            success = await client.update_battery_settings(charge_start_time_2=time_str)
+            if success:
+                _LOGGER.info(f"Successfully updated charge start time 2 to {time_str}")
+                await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error(f"Failed to update charge start time 2 to {time_str}")
+        except Exception as ex:
+            _LOGGER.error(f"Error setting charge start time 2 to {value}: {ex}")
+
+
+class ByteWattChargeEndTime2(ByteWattTimeEntity):
+    """Time entity for charge end time 2."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the charge end time 2 entity."""
+        super().__init__(
+            coordinator=coordinator,
+            config_entry=config_entry,
+            name="Charge End Time 2",
+            unique_id="charge_end_time_2",
+            icon="mdi:battery-plus-outline",
+            attribute_name="time_chae2a",
+        )
+
+    @property
+    def native_value(self) -> Optional[time]:
+        """Return the current charge end time 2."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
+                settings = client.api_client._settings_cache
+                time_str = getattr(settings, self._attribute_name, "00:00")
+                return self._parse_time_string(time_str)
+        except Exception as ex:
+            _LOGGER.debug(f"Error getting charge end time 2: {ex}")
+        return None
+
+    async def async_set_value(self, value: time) -> None:
+        """Set the charge end time 2."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            time_str = self._format_time_for_api(value)
+            success = await client.update_battery_settings(charge_end_time_2=time_str)
+            if success:
+                _LOGGER.info(f"Successfully updated charge end time 2 to {time_str}")
+                await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error(f"Failed to update charge end time 2 to {time_str}")
+        except Exception as ex:
+            _LOGGER.error(f"Error setting charge end time 2 to {value}: {ex}")
+
+
+class ByteWattDischargeStartTime2(ByteWattTimeEntity):
+    """Time entity for discharge start time 2."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the discharge start time 2 entity."""
+        super().__init__(
+            coordinator=coordinator,
+            config_entry=config_entry,
+            name="Discharge Start Time 2",
+            unique_id="discharge_start_time_2",
+            icon="mdi:battery-minus",
+            attribute_name="time_disf2a",
+        )
+
+    @property
+    def native_value(self) -> Optional[time]:
+        """Return the current discharge start time 2."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
+                settings = client.api_client._settings_cache
+                time_str = getattr(settings, self._attribute_name, "04:00")
+                return self._parse_time_string(time_str)
+        except Exception as ex:
+            _LOGGER.debug(f"Error getting discharge start time 2: {ex}")
+        return None
+
+    async def async_set_value(self, value: time) -> None:
+        """Set the discharge start time 2."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            time_str = self._format_time_for_api(value)
+            success = await client.update_battery_settings(
+                discharge_start_time_2=time_str
+            )
+            if success:
+                _LOGGER.info(f"Successfully updated discharge start time 2 to {time_str}")
+                await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error(f"Failed to update discharge start time 2 to {time_str}")
+        except Exception as ex:
+            _LOGGER.error(f"Error setting discharge start time 2 to {value}: {ex}")
+
+
+class ByteWattDischargeEndTime2(ByteWattTimeEntity):
+    """Time entity for discharge end time 2."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the discharge end time 2 entity."""
+        super().__init__(
+            coordinator=coordinator,
+            config_entry=config_entry,
+            name="Discharge End Time 2",
+            unique_id="discharge_end_time_2",
+            icon="mdi:battery-minus-outline",
+            attribute_name="time_dise2a",
+        )
+
+    @property
+    def native_value(self) -> Optional[time]:
+        """Return the current discharge end time 2."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if (
+                hasattr(client.api_client, "_settings_cache")
+                and client.api_client._settings_cache
+            ):
+                settings = client.api_client._settings_cache
+                time_str = getattr(settings, self._attribute_name, "10:00")
+                return self._parse_time_string(time_str)
+        except Exception as ex:
+            _LOGGER.debug(f"Error getting discharge end time 2: {ex}")
+        return None
+
+    async def async_set_value(self, value: time) -> None:
+        """Set the discharge end time 2."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            time_str = self._format_time_for_api(value)
+            success = await client.update_battery_settings(discharge_end_time_2=time_str)
+            if success:
+                _LOGGER.info(f"Successfully updated discharge end time 2 to {time_str}")
+                await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error(f"Failed to update discharge end time 2 to {time_str}")
+        except Exception as ex:
+            _LOGGER.error(f"Error setting discharge end time 2 to {value}: {ex}")

@@ -56,37 +56,97 @@ set_discharge_time:
         time: {}
 
 set_discharge_start_time:
-  name: Set Discharge Start Time
-  description: Set the start time for battery discharge
+  name: Set Discharge Start Time 1
+  description: Set the start time 1 for battery discharge
   fields:
     start_discharge:
-      name: Start Discharge Time
-      description: The time when battery discharge should start (format HH:MM)
+      name: Start Discharge Time 1
+      description: The time when battery discharge 1 should start (format HH:MM)
       example: "16:00"
       required: true
       selector:
         time: {}
 
+set_discharge_end_time:
+  name: Set Discharge End Time 1
+  description: Set the end time 1 for battery discharge
+  fields:
+    end_discharge:
+      name: End Discharge Time 1
+      description: The time when battery discharge 1 should end (format HH:MM)
+      example: "23:00"
+      required: true
+      selector:
+        time: {}
+
 set_charge_start_time:
-  name: Set Charge Start Time
-  description: Set the start time for battery charging
+  name: Set Charge Start Time 1
+  description: Set the start time 1 for battery charging
   fields:
     start_charge:
-      name: Start Charge Time
-      description: The time when battery charging should start (format HH:MM)
+      name: Start Charge Time 1
+      description: The time when battery charging 1 should start (format HH:MM)
       example: "14:30"
       required: true
       selector:
         time: {}
 
 set_charge_end_time:
-  name: Set Charge End Time
-  description: Set the end time for battery charging
+  name: Set Charge End Time 1
+  description: Set the end time 1 for battery charging
   fields:
     end_charge:
-      name: End Charge Time
-      description: The time when battery charging should end (format HH:MM)
+      name: End Charge Time 1
+      description: The time when battery charging 1 should end (format HH:MM)
       example: "16:00"
+      required: true
+      selector:
+        time: {}
+
+set_discharge_start_time_2:
+  name: Set Discharge Start Time 2
+  description: Set the start time 2 for battery discharge
+  fields:
+    start_discharge_2:
+      name: Start Discharge Time 2
+      description: The time when battery discharge 2 should start (format HH:MM)
+      example: "04:00"
+      required: true
+      selector:
+        time: {}
+
+set_discharge_end_time_2:
+  name: Set Discharge End Time 2
+  description: Set the end time 2 for battery discharge
+  fields:
+    end_discharge_2:
+      name: End Discharge Time 2
+      description: The time when battery discharge 2 should end (format HH:MM)
+      example: "10:00"
+      required: true
+      selector:
+        time: {}
+
+set_charge_start_time_2:
+  name: Set Charge Start Time 2
+  description: Set the start time 2 for battery charging
+  fields:
+    start_charge_2:
+      name: Start Charge Time 2
+      description: The time when battery charging 2 should start (format HH:MM)
+      example: "00:00"
+      required: true
+      selector:
+        time: {}
+
+set_charge_end_time_2:
+  name: Set Charge End Time 2
+  description: Set the end time 2 for battery charging
+  fields:
+    end_charge_2:
+      name: End Charge Time 2
+      description: The time when battery charging 2 should end (format HH:MM)
+      example: "00:00"
       required: true
       selector:
         time: {}
@@ -128,30 +188,58 @@ update_battery_settings:
   description: Update multiple battery settings at once
   fields:
     start_discharge:
-      name: Start Discharge Time
-      description: The time when battery discharge should start (format HH:MM)
+      name: Start Discharge Time 1
+      description: The time when battery discharge 1 should start (format HH:MM)
       example: "16:00"
       required: false
       selector:
         time: {}
     end_discharge:
-      name: End Discharge Time
-      description: The time when battery discharge should end (format HH:MM)
+      name: End Discharge Time 1
+      description: The time when battery discharge 1 should end (format HH:MM)
       example: "23:00"
       required: false
       selector:
         time: {}
     start_charge:
-      name: Start Charge Time
-      description: The time when battery charging should start (format HH:MM)
+      name: Start Charge Time 1
+      description: The time when battery charging 1 should start (format HH:MM)
       example: "14:30"
       required: false
       selector:
         time: {}
     end_charge:
-      name: End Charge Time
-      description: The time when battery charging should end (format HH:MM)
+      name: End Charge Time 1
+      description: The time when battery charging 1 should end (format HH:MM)
       example: "16:00"
+      required: false
+      selector:
+        time: {}
+    start_discharge_2:
+      name: Start Discharge Time 2
+      description: The time when battery discharge 2 should start (format HH:MM)
+      example: "04:00"
+      required: false
+      selector:
+        time: {}
+    end_discharge_2:
+      name: End Discharge Time 2
+      description: The time when battery discharge 2 should end (format HH:MM)
+      example: "10:00"
+      required: false
+      selector:
+        time: {}
+    start_charge_2:
+      name: Start Charge Time 2
+      description: The time when battery charging 2 should start (format HH:MM)
+      example: "00:00"
+      required: false
+      selector:
+        time: {}
+    end_charge_2:
+      name: End Charge Time 2
+      description: The time when battery charging 2 should end (format HH:MM)
+      example: "00:00"
       required: false
       selector:
         time: {}
