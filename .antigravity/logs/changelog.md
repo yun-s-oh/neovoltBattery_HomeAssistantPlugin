@@ -22,7 +22,7 @@ All notable changes to this project will be documented in this file.
 
 ## 2026-05-13
 - Added Docker support to project setup.
-- Updated Battery UPS Reserve Enable logic to derive from `upsReserve` value (0=False, 1=True) instead of `upsReserveEnable` boolean.
+- Updated Battery UPS Reserve Enable API logic to derive from `upsReserve` value (0=False, 1=True). Note: The `upsReserveEnable` boolean switch is not implemented yet.
 - Removed "Battery Off-Grid SOC Control" switch and configuration options as they are no longer required.
 - Cleaned up API parameters and models to reflect these changes.
 - Added support for secondary charge and discharge time controls, enabling two configurable windows.
