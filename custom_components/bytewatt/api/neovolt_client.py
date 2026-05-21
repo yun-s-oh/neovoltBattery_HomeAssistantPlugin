@@ -581,7 +581,7 @@ class NeovoltClient:
             today_stats_url = f"{self.base_url}/api/report/power/staticsByDay"
             today_stats_date = now.strftime("%Y-%m-%d")
             today_stats_params = {
-                "sysSn": "",
+                "sysSn": sysSn,
                 "date": today_stats_date,
             }
 

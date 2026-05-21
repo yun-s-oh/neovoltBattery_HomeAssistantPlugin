@@ -25,4 +25,4 @@ The Core installation method is deprecated. Only use for quick tests:
 - [Context](context.md) — Update architectural details, services, or new features.
 - [Changelog](logs/changelog.md) — Always log notable changes here immediately.
 
-See the `.agents/rules/documentation-updates.md` rule for more details.
+See the `.agents/workflows/update-docs.md` workflow for more details on this required process.

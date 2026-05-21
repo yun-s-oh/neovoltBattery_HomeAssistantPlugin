@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-05-22
+- Fixed an issue where "today" sensor values aggregated data across all inverters by passing the specific `sysSn` to the `/api/report/power/staticsByDay` API endpoint.
+- Created the `.agents/workflows/update-docs.md` workflow to standardize documentation and changelog updates.
+
 ## 2026-05-12
 - Created `.antigravity` folder for project instructions and context.
 - Migrated legacy `CLAUDE.md` and split its contents.
