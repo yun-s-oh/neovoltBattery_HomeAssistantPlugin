@@ -33,6 +33,7 @@ DEFAULT_BASE_URL = "https://monitor.byte-watt.com"
 API_LOGIN_PATH = "/api/usercenter/cloud/user/login"
 API_INVERTER_LIST_PATH = "/api/stable/home/getCustomMenuEssList"
 API_FEED_STRATEGY_PATH = "/api/iterate/sysSet/getFeedStrategyList"
+API_SAVE_FEED_STRATEGY_PATH = "/api/iterate/sysSet/saveFeedStrategy"
 HTTP_SUCCESS_CODE = 200
 TIMEOUT_SECONDS = 30
 
@@ -199,6 +200,63 @@ def get_feed_strategy_list(
     except Exception as e:
         logger.exception("Unexpected error querying feed strategy: %s", str(e))
         return None
+
+
+def save_feed_strategy(
+    token: str,
+    payload: Dict[str, Any],
+    base_url: str = DEFAULT_BASE_URL,
+) -> bool:
+    """
+    Save the feed strategy settings via POST request to the API.
+
+    Returns True if the API returns a successful business code and data is True.
+    """
+    url = f"{base_url}{API_SAVE_FEED_STRATEGY_PATH}"
+    current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json, text/plain, */*",
+        "language": "en-US",
+        "operationDate": current_date,
+        "platform": "AK9D8H",
+        "System": "alphacloud",
+    }
+
+    logger.info("Sending save feed strategy request to %s", url)
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=TIMEOUT_SECONDS)
+
+        if response.status_code != HTTP_SUCCESS_CODE:
+            logger.error(
+                "Failed to save feed strategy (HTTP %d): %s",
+                response.status_code,
+                response.text
+            )
+            return False
+
+        result = response.json()
+        if result.get("code") not in (0, HTTP_SUCCESS_CODE):
+            logger.error(
+                "Save feed strategy API error: code %s, msg: %s",
+                result.get("code"),
+                result.get("msg")
+            )
+            return False
+
+        data = result.get("data")
+        if data is True:
+            logger.info("Successfully saved feed strategy settings!")
+            return True
+
+        logger.error("Save feed strategy returned unexpected data: %s", data)
+        return False
+
+    except Exception as e:
+        logger.exception("Unexpected error saving feed strategy: %s", str(e))
+        return False
 
 
 def print_feed_strategy(data: Dict[str, Any]) -> None:
