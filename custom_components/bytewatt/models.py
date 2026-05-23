@@ -293,3 +293,101 @@ class BatterySettings:
         result.update(self.additional_fields)
 
         return result
+
+
+@dataclass
+class FeedStrategySchedule:
+    """Represents a single feed-in strategy schedule."""
+
+    id: Optional[int] = None
+    sys_sn: str = ""
+    start: str = "00:00"
+    end: str = "00:00"
+    feed_power: float = 0.0
+    sort: int = 1
+
+
+@dataclass
+class FeedStrategySettings:
+    """Represents feed-in strategy settings from getFeedStrategyList."""
+
+    battery_en: int = 0
+    battery_feed_cutoff_soc: float = 0.0
+    id: str = ""
+    precharge_en: int = 0
+    poinv: float = 5000.0
+    feed_strategy_list: List[FeedStrategySchedule] = field(default_factory=list)
+
+    @classmethod
+    def from_api_response(cls, data: Dict[str, Any]) -> "FeedStrategySettings":
+        """Create a FeedStrategySettings instance from API response.
+
+        We default feedPower to 0 and start/end time to "00:00" if
+        schedules are empty or don't cover the required sorts.
+        """
+        vo_list = data.get("feedStrategyVOList") or []
+        schedules = []
+        for vo in vo_list:
+            schedules.append(
+                FeedStrategySchedule(
+                    id=vo.get("id"),
+                    sys_sn=vo.get("sysSn", ""),
+                    start=vo.get("start", "00:00"),
+                    end=vo.get("end", "00:00"),
+                    feed_power=float(vo.get("feedPower", 0.0)),
+                    sort=int(vo.get("sort", 1)),
+                )
+            )
+
+        # Ensure sort 1 and sort 2 are ALWAYS in the list!
+        has_sort_1 = any(s.sort == 1 for s in schedules)
+        has_sort_2 = any(s.sort == 2 for s in schedules)
+
+        sys_sn = ""
+        if vo_list:
+            sys_sn = vo_list[0].get("sysSn", "")
+
+        if not has_sort_1:
+            schedules.append(
+                FeedStrategySchedule(
+                    id=None,
+                    sys_sn=sys_sn,
+                    start="00:00",
+                    end="00:00",
+                    feed_power=0.0,
+                    sort=1,
+                )
+            )
+        if not has_sort_2:
+            schedules.append(
+                FeedStrategySchedule(
+                    id=None,
+                    sys_sn=sys_sn,
+                    start="00:00",
+                    end="00:00",
+                    feed_power=0.0,
+                    sort=2,
+                )
+            )
+
+        # Keep the list sorted for predictable payloads and comparisons
+        schedules.sort(key=lambda s: s.sort)
+
+        return cls(
+            battery_en=data.get("batteryEn", 0),
+            battery_feed_cutoff_soc=float(data.get("batteryFeedCutoffSoc", 0.0)),
+            id=data.get("id", ""),
+            precharge_en=data.get("prechargeEn", 0),
+            poinv=float(data.get("poinv", 5000.0)),
+            feed_strategy_list=schedules,
+        )
+
+    def get_schedule_by_sort(self, sort_order: int) -> FeedStrategySchedule:
+        """Get a schedule by sort order or return a default empty schedule.
+
+        Ensures we default to 0 for feedPower, "00:00" for start and end times.
+        """
+        for sched in self.feed_strategy_list:
+            if sched.sort == sort_order:
+                return sched
+        return FeedStrategySchedule(start="00:00", end="00:00", feed_power=0.0, sort=sort_order)

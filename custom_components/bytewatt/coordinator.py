@@ -211,6 +211,8 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                     )
                 else:
                     await self.client.api_client.async_get_battery_settings()
+                    if self._serial_number != "All":
+                        await self.client.get_feed_strategy()
             except Exception as ex:
                 _LOGGER.warning(f"Failed to fetch battery settings: {ex}")
 

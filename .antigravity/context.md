@@ -93,8 +93,18 @@ custom_components/bytewatt/
 
 ## Recent Changes (May 2026)
 
-### Feed-In Strategy Endpoints & Test Automation
-- ✅ **New Feed-in Strategy Endpoints Added to Tests**:
+### Grid Feed-In Control Integration & Test Automation
+- ✅ **Core Home Assistant Grid Feed-in Entities**:
+  - **Toggle Switch**: Grid Feed-in Control entity (`battery_en` / `batteryEn` toggle).
+  - **Start/End Times**: Start/End time entities for slots 1 and 2, mapped dynamically based on the schedule `sort` field.
+  - **Power Limits**: Bounded number entities dynamically restricted by inverter capacity `poinv` for slots 1 and 2.
+  - **Discharging Cutoff SOC**: A number entity covering SOC cutoff limits with a strict range of 5% to 100%.
+  - **Setup Guards**: All feed-in entities load ONLY on individual serial configurations (disabled on "All" serial configurations).
+- ✅ **API Schedule Normalization**:
+  - Integrated a serialization loop in `neovolt_client.py` ensuring *all* active or pre-populated schedules contain a valid `sys_sn` before saving to prevent transient payload rejection from the server.
+- ✅ **Automated Unit Test Coverage**:
+  - Created [test_feed_in_control.py](file:///tests/test_feed_in_control.py) to validate parsing, defaults, dynamic limits, validation ranges, switches, and client payload normalization.
+- ✅ **New API Settings Endpoints**:
   - **GET**: `api/iterate/sysSet/getFeedStrategyList?id=` (retrieves battery feedCutoffSoc, poinv, precharge settings, and active schedules)
   - **POST**: `api/iterate/sysSet/saveFeedStrategy` (saves grid feed-in schedules and configuration)
 - ✅ **Standalone PEP 8 Test Scripts**:

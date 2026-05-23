@@ -11,7 +11,14 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_SERIAL_NUMBER
+from .const import (
+    DOMAIN,
+    CONF_SERIAL_NUMBER,
+    SENSOR_FEED_IN_START_1,
+    SENSOR_FEED_IN_END_1,
+    SENSOR_FEED_IN_START_2,
+    SENSOR_FEED_IN_END_2,
+)
 from .coordinator import ByteWattDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,6 +42,15 @@ async def async_setup_entry(
         ByteWattDischargeStartTime2(coordinator, config_entry),
         ByteWattDischargeEndTime2(coordinator, config_entry),
     ]
+
+    sys_sn = config_entry.data.get(CONF_SERIAL_NUMBER, "All")
+    if sys_sn != "All":
+        entities.extend([
+            ByteWattFeedInStartTime1(coordinator, config_entry),
+            ByteWattFeedInEndTime1(coordinator, config_entry),
+            ByteWattFeedInStartTime2(coordinator, config_entry),
+            ByteWattFeedInEndTime2(coordinator, config_entry),
+        ])
 
     async_add_entities(entities)
 
@@ -481,3 +497,189 @@ class ByteWattDischargeEndTime2(ByteWattTimeEntity):
                 _LOGGER.error(f"Failed to update discharge end time 2 to {time_str}")
         except Exception as ex:
             _LOGGER.error(f"Error setting discharge end time 2 to {value}: {ex}")
+
+
+class ByteWattFeedInTimeEntity(CoordinatorEntity, TimeEntity):
+    """Base class for Byte-Watt Feed-in time entities."""
+
+    def __init__(
+        self,
+        coordinator: ByteWattDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        name: str,
+        unique_id: str,
+        icon: str,
+        sort_order: int,
+        is_start: bool,
+    ) -> None:
+        """Initialize the feed-in time entity."""
+        super().__init__(coordinator)
+        self._config_entry = config_entry
+        sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
+        self._friendly_name = name
+        self._attr_name = f"{name} {sys_sn}"
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_{unique_id}_{sys_sn.lower()}"
+        )
+        self._attr_icon = icon
+        self._attr_entity_category = EntityCategory.CONFIG
+        self._sort_order = sort_order
+        self._is_start = is_start
+
+    @property
+    def name(self) -> str:
+        """Return the friendly name of the time entity."""
+        return self._friendly_name
+
+    @property
+    def device_info(self):
+        """Return device info."""
+        username = self._config_entry.data.get("username", "Unknown")
+        sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
+        device_name = f"Byte-Watt Battery ({username}) - {sys_sn}"
+        return {
+            "identifiers": {(DOMAIN, self._config_entry.entry_id)},
+            "name": device_name,
+            "manufacturer": "ByteWatt",
+            "model": "Battery Management System",
+            "sw_version": "1.0.0",
+        }
+
+    def _parse_time_string(self, time_str: str) -> Optional[time]:
+        """Parse a time string (HH:MM) into a time object."""
+        try:
+            if time_str and ":" in time_str:
+                hour, minute = time_str.split(":", 1)
+                return time(int(hour), int(minute))
+        except (ValueError, AttributeError) as ex:
+            _LOGGER.debug(f"Error parsing time string '{time_str}': {ex}")
+        return None
+
+    def _format_time_for_api(self, time_obj: time) -> str:
+        """Format a time object for the API (HH:MM)."""
+        return f"{time_obj.hour:02d}:{time_obj.minute:02d}"
+
+    @property
+    def native_value(self) -> Optional[time]:
+        """Return the current feed-in time."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if (
+                hasattr(client.api_client, "_feed_strategy_cache")
+                and client.api_client._feed_strategy_cache
+            ):
+                settings = client.api_client._feed_strategy_cache
+                sched = settings.get_schedule_by_sort(self._sort_order)
+                time_str = sched.start if self._is_start else sched.end
+                return self._parse_time_string(time_str)
+        except Exception as ex:
+            _LOGGER.debug(f"Error getting feed-in time: {ex}")
+        return None
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            return (
+                hasattr(client.api_client, "_feed_strategy_cache")
+                and client.api_client._feed_strategy_cache is not None
+            )
+        except Exception:
+            return False
+
+    async def async_set_value(self, value: time) -> None:
+        """Set the feed-in time."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            time_str = self._format_time_for_api(value)
+            sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER)
+
+            if self._is_start:
+                success = await client.update_feed_strategy(
+                    sys_sn=sys_sn, schedule_sort=self._sort_order, start=time_str
+                )
+            else:
+                success = await client.update_feed_strategy(
+                    sys_sn=sys_sn, schedule_sort=self._sort_order, end=time_str
+                )
+
+            if success:
+                _LOGGER.info(f"Successfully updated {self._friendly_name} to {time_str}")
+                await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error(f"Failed to update {self._friendly_name} to {time_str}")
+        except Exception as ex:
+            _LOGGER.error(f"Error setting {self._friendly_name} to {value}: {ex}")
+
+
+class ByteWattFeedInStartTime1(ByteWattFeedInTimeEntity):
+    """Time entity for feed-in start time 1."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the feed-in start time 1."""
+        super().__init__(
+            coordinator=coordinator,
+            config_entry=config_entry,
+            name="Feed in Start time 1",
+            unique_id=SENSOR_FEED_IN_START_1,
+            icon="mdi:clock-start",
+            sort_order=1,
+            is_start=True,
+        )
+
+
+class ByteWattFeedInEndTime1(ByteWattFeedInTimeEntity):
+    """Time entity for feed-in end time 1."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the feed-in end time 1."""
+        super().__init__(
+            coordinator=coordinator,
+            config_entry=config_entry,
+            name="Feed in End time 1",
+            unique_id=SENSOR_FEED_IN_END_1,
+            icon="mdi:clock-end",
+            sort_order=1,
+            is_start=False,
+        )
+
+
+class ByteWattFeedInStartTime2(ByteWattFeedInTimeEntity):
+    """Time entity for feed-in start time 2."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the feed-in start time 2."""
+        super().__init__(
+            coordinator=coordinator,
+            config_entry=config_entry,
+            name="Feed in Start time 2",
+            unique_id=SENSOR_FEED_IN_START_2,
+            icon="mdi:clock-start",
+            sort_order=2,
+            is_start=True,
+        )
+
+
+class ByteWattFeedInEndTime2(ByteWattFeedInTimeEntity):
+    """Time entity for feed-in end time 2."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the feed-in end time 2."""
+        super().__init__(
+            coordinator=coordinator,
+            config_entry=config_entry,
+            name="Feed in End time 2",
+            unique_id=SENSOR_FEED_IN_END_2,
+            icon="mdi:clock-end",
+            sort_order=2,
+            is_start=False,
+        )

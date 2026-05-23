@@ -38,6 +38,7 @@ class NeovoltClient:
         self.session = async_get_clientsession(hass)
         self.token: Optional[str] = None
         self._settings_cache = None
+        self._feed_strategy_cache = None
         self._fresh_settings_update = False
         self._settings_update_time = None
 
@@ -749,6 +750,127 @@ class NeovoltClient:
         except Exception as error:
             _LOGGER.error("Error updating battery settings: %s", error)
             return False
+
+    async def async_get_feed_strategy(self):
+        """Get current feed-in strategy settings and cache them."""
+        try:
+            from .settings import BatterySettingsAPI
+
+            settings_api = BatterySettingsAPI(self)
+            settings = await settings_api.fetch_feed_strategy()
+
+            if settings:
+                self._feed_strategy_cache = settings
+                _LOGGER.debug("Cached feed strategy settings: %s", settings)
+
+            return settings
+
+        except Exception as error:
+            _LOGGER.error("Error fetching feed strategy settings: %s", error)
+            return None
+
+    async def async_update_feed_strategy(
+        self,
+        sys_sn: str,
+        battery_en: Optional[bool] = None,
+        schedule_sort: Optional[int] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        feed_power: Optional[float] = None,
+        cutoff_soc: Optional[float] = None,
+    ) -> bool:
+        """Update feed-in strategy settings."""
+        try:
+            from .settings import BatterySettingsAPI
+            from ..models import FeedStrategySchedule
+
+            # Get current settings first (api or cache)
+            current_settings = self._feed_strategy_cache
+            if not current_settings:
+                current_settings = await self.async_get_feed_strategy()
+
+            if not current_settings:
+                _LOGGER.error("Cannot update feed strategy because current settings could not be retrieved")
+                return False
+
+            # Create a backup of battery_en and cutoff_soc
+            old_battery_en = current_settings.battery_en
+            old_cutoff_soc = current_settings.battery_feed_cutoff_soc
+
+            if battery_en is not None:
+                current_settings.battery_en = 1 if battery_en else 0
+
+            if cutoff_soc is not None:
+                current_settings.battery_feed_cutoff_soc = float(cutoff_soc)
+
+            # The API server rejects the save request if any schedule has an empty serial number.
+            # We normalize all schedules to use the active system serial number.
+            for sched in current_settings.feed_strategy_list:
+                if not sched.sys_sn:
+                    sched.sys_sn = sys_sn
+
+            # If schedule parameters are updated
+            if schedule_sort is not None:
+                # Find or create schedule
+                target_sched = None
+                for sched in current_settings.feed_strategy_list:
+                    if sched.sort == schedule_sort:
+                        target_sched = sched
+                        break
+
+                if not target_sched:
+                    target_sched = FeedStrategySchedule(
+                        sys_sn=sys_sn,
+                        start="00:00",
+                        end="00:00",
+                        feed_power=0.0,
+                        sort=schedule_sort,
+                    )
+                    current_settings.feed_strategy_list.append(target_sched)
+
+                # Update schedule parameters
+                target_sched.sys_sn = sys_sn
+                if start is not None:
+                    target_sched.start = start
+                if end is not None:
+                    target_sched.end = end
+                if feed_power is not None:
+                    target_sched.feed_power = float(feed_power)
+
+            # Save the updated strategy
+            settings_api = BatterySettingsAPI(self)
+            success = await settings_api.save_feed_strategy(current_settings)
+
+            if success:
+                # Set fresh update flag to delay coordinator refresh
+                self._fresh_settings_update = True
+                self._settings_update_time = dt_util.utcnow()
+
+                # Fetch fresh settings after a delay
+                asyncio.create_task(self._auto_fetch_updated_feed_strategy())
+                return True
+            else:
+                # Revert local changes on failure
+                if battery_en is not None:
+                    current_settings.battery_en = old_battery_en
+                if cutoff_soc is not None:
+                    current_settings.battery_feed_cutoff_soc = old_cutoff_soc
+                # Re-fetch from API to be absolutely sure the cache is in sync
+                await self.async_get_feed_strategy()
+                return False
+
+        except Exception as error:
+            _LOGGER.error("Error updating feed strategy: %s", error)
+            return False
+
+    async def _auto_fetch_updated_feed_strategy(self):
+        """Auto-fetch updated feed strategy settings from API after delay."""
+        try:
+            await asyncio.sleep(3)
+            _LOGGER.debug("Auto-fetching updated feed strategy from API")
+            await self.async_get_feed_strategy()
+        except Exception as ex:
+            _LOGGER.error(f"Error during auto-fetch of feed strategy: {ex}")
 
     async def _auto_fetch_updated_settings(self):
         """Auto-fetch updated settings from API after successful update with delay."""

@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, Tuple
 
 from homeassistant.util import dt as dt_util
 
-from ..models import BatterySettings
+from ..models import BatterySettings, FeedStrategySettings
 from ..utilities.time_utils import sanitize_time_format
 from typing import TYPE_CHECKING
 
@@ -522,3 +522,127 @@ class BatterySettingsAPI:
             max_retries=max_retries,
             retry_delay=retry_delay,
         )
+
+    async def fetch_feed_strategy(
+        self, max_retries: int = 3, retry_delay: int = 1
+    ) -> Optional[FeedStrategySettings]:
+        """Fetch current feed strategy settings from the API.
+
+        Args:
+            max_retries: Maximum number of retry attempts
+            retry_delay: Delay between retries in seconds
+
+        Returns:
+            FeedStrategySettings if successful, None if failed
+        """
+        endpoint = f"api/iterate/sysSet/getFeedStrategyList?id={self.api_client.system_id or ''}"
+        _LOGGER.debug("Fetching feed strategy from endpoint %s", endpoint)
+        for attempt in range(max_retries):
+            response = await self.api_client._async_get(endpoint)
+
+            if not response:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                continue
+
+            if (
+                "data" not in response
+                or "code" not in response
+                or response["code"] != 200
+            ):
+                if response.get("code") == 6069:
+                    _LOGGER.warning(
+                        "Session expired (code 6069), attempting to re-login"
+                    )
+                    if await self.api_client.async_login():
+                        response = await self.api_client._async_get(endpoint)
+                        if (
+                            response
+                            and "data" in response
+                            and response.get("code") == 200
+                        ):
+                            return FeedStrategySettings.from_api_response(response["data"])
+
+                _LOGGER.error(
+                    f"Unexpected response format (attempt {attempt+1}/{max_retries}): {response}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                continue
+
+            return FeedStrategySettings.from_api_response(response["data"])
+
+        _LOGGER.error(f"Failed to fetch feed strategy after {max_retries} attempts")
+        return None
+
+    async def save_feed_strategy(
+        self, feed_settings: FeedStrategySettings, max_retries: int = 5, retry_delay: int = 1
+    ) -> bool:
+        """Send feed strategy settings to the server using POST request.
+
+        Args:
+            feed_settings: FeedStrategySettings to send
+            max_retries: Maximum number of retry attempts
+            retry_delay: Delay between retries in seconds
+
+        Returns:
+            True if successful, False otherwise
+        """
+        endpoint = "api/iterate/sysSet/saveFeedStrategy"
+
+        # Build payload matching the format from test_save_feed_strategy.py
+        dtos = []
+        for sched in feed_settings.feed_strategy_list:
+            dto = {
+                "id": sched.id,
+                "sysSn": sched.sys_sn,
+                "start": sched.start,
+                "end": sched.end,
+                "feedPower": sched.feed_power,
+                "sort": sched.sort,
+            }
+            # Remove keys with None values
+            dto = {k: v for k, v in dto.items() if v is not None}
+            dtos.append(dto)
+
+        payload = {
+            "batteryEn": feed_settings.battery_en,
+            "batteryFeedCutoffSoc": feed_settings.battery_feed_cutoff_soc,
+            "id": self.api_client.system_id or "",
+            "prechargeEn": feed_settings.precharge_en,
+            "feedStrategyDTOList": dtos,
+        }
+
+        _LOGGER.debug("Saving feed strategy to %s with payload %s", endpoint, payload)
+        for attempt in range(max_retries):
+            response = await self.api_client._async_post(endpoint, payload)
+
+            if not response:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                continue
+
+            if response.get("code") == 200 and response.get("data") is True:
+                _LOGGER.debug("Successfully saved feed strategy settings")
+                return True
+            elif response.get("code") == 6069:
+                _LOGGER.warning("Session expired (code 6069), attempting to re-login")
+                if await self.api_client.async_login():
+                    response = await self.api_client._async_post(endpoint, payload)
+                    if (
+                        response
+                        and response.get("code") == 200
+                        and response.get("data") is True
+                    ):
+                        _LOGGER.debug("Successfully saved feed strategy settings after re-login")
+                        return True
+            else:
+                _LOGGER.error(
+                    f"Unexpected response when saving feed strategy: {response}"
+                )
+
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+
+        _LOGGER.error(f"Failed to save feed strategy after {max_retries} attempts")
+        return False

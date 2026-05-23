@@ -10,7 +10,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_SERIAL_NUMBER
+from .const import DOMAIN, CONF_SERIAL_NUMBER, SENSOR_GRID_FEED_IN_CONTROL
 from .coordinator import ByteWattDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,6 +28,10 @@ async def async_setup_entry(
         ByteWattGridChargeSwitch(coordinator, config_entry),
         ByteWattDischargeControlSwitch(coordinator, config_entry),
     ]
+
+    sys_sn = config_entry.data.get(CONF_SERIAL_NUMBER, "All")
+    if sys_sn != "All":
+        entities.append(ByteWattGridFeedInControlSwitch(coordinator, config_entry))
 
     async_add_entities(entities)
 
@@ -198,3 +202,93 @@ class ByteWattGridChargeSwitch(ByteWattSwitchEntity):
         except Exception as ex:
             action = "enable" if state else "disable"
             _LOGGER.error(f"Error trying to {action} grid charging: {ex}")
+
+
+class ByteWattGridFeedInControlSwitch(SwitchEntity, CoordinatorEntity):
+    """Switch entity for grid feed-in control."""
+
+    def __init__(
+        self, coordinator: ByteWattDataUpdateCoordinator, config_entry: ConfigEntry
+    ) -> None:
+        """Initialize the grid feed-in control switch."""
+        super().__init__(coordinator)
+        self._config_entry = config_entry
+        sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
+        self._friendly_name = "Grid Feed-In Control"
+        self._attr_name = f"{self._friendly_name} {sys_sn}"
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_{SENSOR_GRID_FEED_IN_CONTROL}_{sys_sn.lower()}"
+        )
+        self._attr_icon = "mdi:transmission-tower-export"
+        self._attr_entity_category = EntityCategory.CONFIG
+
+    @property
+    def name(self) -> str:
+        """Return the friendly name of the switch."""
+        return self._friendly_name
+
+    @property
+    def device_info(self):
+        """Return device info."""
+        username = self._config_entry.data.get("username", "Unknown")
+        sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER, "All")
+        device_name = f"Byte-Watt Battery ({username}) - {sys_sn}"
+        return {
+            "identifiers": {(DOMAIN, self._config_entry.entry_id)},
+            "name": device_name,
+            "manufacturer": "ByteWatt",
+            "model": "Battery Management System",
+            "sw_version": "1.0.0",
+        }
+
+    @property
+    def is_on(self) -> Optional[bool]:
+        """Return true if the switch is on."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            if (
+                hasattr(client.api_client, "_feed_strategy_cache")
+                and client.api_client._feed_strategy_cache
+            ):
+                settings = client.api_client._feed_strategy_cache
+                return bool(int(getattr(settings, "battery_en", 0)))
+        except (ValueError, TypeError, AttributeError) as ex:
+            _LOGGER.debug(f"Error getting Grid Feed-In Control state: {ex}")
+        return False
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            return (
+                hasattr(client.api_client, "_feed_strategy_cache")
+                and client.api_client._feed_strategy_cache is not None
+            )
+        except Exception:
+            return False
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the switch on."""
+        await self._async_set_state(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the switch off."""
+        await self._async_set_state(False)
+
+    async def _async_set_state(self, state: bool) -> None:
+        """Set the switch state."""
+        try:
+            client = self.hass.data[DOMAIN][self._config_entry.entry_id]["client"]
+            sys_sn = self._config_entry.data.get(CONF_SERIAL_NUMBER)
+            success = await client.update_feed_strategy(sys_sn=sys_sn, battery_en=state)
+            if success:
+                action = "enabled" if state else "disabled"
+                _LOGGER.info(f"Successfully {action} grid feed-in control")
+                await self.coordinator.async_request_refresh()
+            else:
+                action = "enable" if state else "disable"
+                _LOGGER.error(f"Failed to {action} grid feed-in control")
+        except Exception as ex:
+            action = "enable" if state else "disable"
+            _LOGGER.error(f"Error trying to {action} grid feed-in control: {ex}")

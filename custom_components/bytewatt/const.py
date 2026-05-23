@@ -74,6 +74,16 @@ SENSOR_CHARGE_END = "charge_end_time"
 SENSOR_MIN_SOC = "minimum_soc"
 SENSOR_CHARGE_CAP = "charge_cap"
 
+# Feed-in settings
+SENSOR_GRID_FEED_IN_CONTROL = "grid_feed_in_control"
+SENSOR_FEED_IN_START_1 = "feed_in_start_time_1"
+SENSOR_FEED_IN_END_1 = "feed_in_end_time_1"
+SENSOR_FEED_IN_START_2 = "feed_in_start_time_2"
+SENSOR_FEED_IN_END_2 = "feed_in_end_time_2"
+SENSOR_FEED_IN_POWER_1 = "feed_in_power_1"
+SENSOR_FEED_IN_POWER_2 = "feed_in_power_2"
+SENSOR_FEED_IN_CUTOFF_SOC = "feed_in_cutoff_soc"
+
 # Grid stats sensor types
 SENSOR_TOTAL_SOLAR = "total_solar_generation"
 SENSOR_TOTAL_FEED_IN = "total_feed_in"

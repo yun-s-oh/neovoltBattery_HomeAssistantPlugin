@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 ## 2026-05-23
+- Implemented core Home Assistant integration support for Grid Feed-In Control entities:
+  - Registered main Feed-In Control Toggle Switch (`battery_en` / `batteryEn`).
+  - Registered Feed-In Start and End Time entities for schedule slots 1 and 2 (mapping to `sort` fields, defaulting to `"00:00"`).
+  - Registered Feed-In Power Limit number entities bounded dynamically by inverter capacity `poinv`.
+  - Registered Discharging Cutoff SOC number entity with a strict range of 5% to 100%.
+  - Guarded all feed-in entities to load ONLY on individual serial configurations (disabled on "All" serial configurations).
+- Implemented automatic schedule normalization in the API client payload compilation, fixing a critical validation bug where the server rejected updates when any schedule slot had a blank serial number (`sys_sn`).
+- Added a comprehensive automated test suite `tests/test_feed_in_control.py` covering models, platforms, dynamic limits, and serialization/normalization logic.
 - Implemented standalone, PEP 8-compliant test scripts `tests/test_feed_strategy.py` and `tests/test_save_feed_strategy.py` for the new ByteWatt settings endpoints (`getFeedStrategyList` and `saveFeedStrategy`).
 - Integrated intelligent serial number resolution into both test scripts, allowing automatic lookup of system IDs from the connected inverter list by supplying serial numbers (e.g., `25000SP265W00123`).
 - Added support for `--action add-schedule` in `test_save_feed_strategy.py` to test adding multiple schedules with custom start/end times and power limits.

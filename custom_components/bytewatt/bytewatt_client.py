@@ -88,3 +88,30 @@ class ByteWattClient:
                 charge_start_time_2=charge_start_time_2,
                 charge_end_time_2=charge_end_time_2,
             )
+
+    async def get_feed_strategy(self) -> Optional[Any]:
+        """Get feed strategy settings from the API."""
+        async with self.lock:
+            return await self.api_client.async_get_feed_strategy()
+
+    async def update_feed_strategy(
+        self,
+        sys_sn: str,
+        battery_en: Optional[bool] = None,
+        schedule_sort: Optional[int] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        feed_power: Optional[float] = None,
+        cutoff_soc: Optional[float] = None,
+    ) -> bool:
+        """Update feed strategy settings."""
+        async with self.lock:
+            return await self.api_client.async_update_feed_strategy(
+                sys_sn=sys_sn,
+                battery_en=battery_en,
+                schedule_sort=schedule_sort,
+                start=start,
+                end=end,
+                feed_power=feed_power,
+                cutoff_soc=cutoff_soc,
+            )
