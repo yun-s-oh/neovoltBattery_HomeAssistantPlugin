@@ -288,7 +288,7 @@ def print_feed_strategy(data: Dict[str, Any]) -> None:
             print(f"    System SN:   {strat.get('sysSn')}")
             print(f"    Start Time:  {strat.get('start')}")
             print(f"    End Time:    {strat.get('end')}")
-            print(f"    Feed Power:  {strat.get('feedPower')}%")
+            print(f"    Feed Power:  {strat.get('feedPower')} W")
             print(f"    Sort Order:  {strat.get('sort')}")
             print("-" * 30)
     else:
@@ -321,24 +321,31 @@ if __name__ == "__main__":
         print("❌ Authentication failed. Please check your credentials.")
         sys.exit(1)
 
-    # Automatically discover the system ID if it wasn't explicitly supplied
-    if not system_id:
-        print("System ID not provided. Fetching inverter list for auto-discovery...")
+    # Discover or resolve system ID
+    if not system_id or any(sn_marker in system_id for sn_marker in ("SP", "25000")):
+        print("Resolving or discovering system ID via inverter list...")
         inverters = get_inverter_list(token)
+        resolved_id = None
         if inverters:
-            # Look for the first inverter with a valid systemId
             for inv in inverters:
                 sys_sn = inv.get("sysSn")
                 sys_id = inv.get("systemId")
-                if sys_id:
-                    print(f"Found system ID: '{sys_id}' for inverter SN: {sys_sn}")
-                    system_id = sys_id
+                if system_id and sys_sn == system_id:
+                    print(f"Resolved serial number '{system_id}' to system ID: '{sys_id}'")
+                    resolved_id = sys_id
+                    break
+                elif not system_id and sys_id:
+                    print(f"Auto-discovered system ID: '{sys_id}' for inverter SN: {sys_sn}")
+                    resolved_id = sys_id
                     break
 
+            if resolved_id:
+                system_id = resolved_id
+
         if not system_id:
-            print("❌ Failed to automatically discover a system ID.")
+            print("❌ Failed to automatically discover or resolve a system ID.")
             print(
-                "Please specify a system ID via environment variable or command line argument."
+                "Please specify a system ID/Serial Number via environment variable or CLI."
             )
             sys.exit(1)
 

@@ -164,7 +164,7 @@ if __name__ == "__main__":
     parser.add_argument("--system-id", help="System ID (overrides .env/auto-discovery)")
     parser.add_argument(
         "--action",
-        choices=["test-save", "toggle-feed", "set-cutoff"],
+        choices=["test-save", "toggle-feed", "set-cutoff", "add-schedule"],
         default="test-save",
         help="Type of save action to test (default: safe test-save of current settings)"
     )
@@ -195,21 +195,29 @@ if __name__ == "__main__":
         print("❌ Authentication failed.")
         sys.exit(1)
 
-    # Auto-discover system ID
-    if not system_id:
-        print("Fetching inverter list for auto-discovery...")
+    # Discover or resolve system ID
+    if not system_id or any(sn_marker in system_id for sn_marker in ("SP", "25000")):
+        print("Resolving or discovering system ID via inverter list...")
         inverters = get_inverter_list(token)
+        resolved_id = None
         if inverters:
             for inv in inverters:
                 sys_sn = inv.get("sysSn")
                 sys_id = inv.get("systemId")
-                if sys_id:
-                    print(f"Found system ID: '{sys_id}' for inverter SN: {sys_sn}")
-                    system_id = sys_id
+                if system_id and sys_sn == system_id:
+                    print(f"Resolved serial number '{system_id}' to system ID: '{sys_id}'")
+                    resolved_id = sys_id
+                    break
+                elif not system_id and sys_id:
+                    print(f"Auto-discovered system ID: '{sys_id}' for inverter SN: {sys_sn}")
+                    resolved_id = sys_id
                     break
 
+            if resolved_id:
+                system_id = resolved_id
+
         if not system_id:
-            print("❌ Failed to automatically discover a system ID.")
+            print("❌ Failed to automatically discover or resolve a system ID.")
             sys.exit(1)
 
     # 1. Fetch current settings to build base payload
@@ -242,6 +250,31 @@ if __name__ == "__main__":
             sys.exit(1)
         print(f"Action: Set batteryFeedCutoffSoc to {args.cutoff_soc}%")
         payload = build_save_payload(current_settings, system_id, cutoff_soc=args.cutoff_soc)
+
+    elif args.action == "add-schedule":
+        print("Action: Add/update schedule (09:45 - 10:00, 4000 W, sort 2)")
+        payload = build_save_payload(current_settings, system_id)
+        dtos = payload["feedStrategyDTOList"]
+
+        # Check if sort 2 schedule already exists, update it if so
+        sort_2_found = False
+        for dto in dtos:
+            if dto.get("sort") == 2:
+                dto["start"] = "09:45"
+                dto["end"] = "10:00"
+                dto["feedPower"] = 4000
+                dto["sysSn"] = "25000SP265W00123"
+                sort_2_found = True
+                break
+
+        if not sort_2_found:
+            dtos.append({
+                "sysSn": "25000SP265W00123",
+                "start": "09:45",
+                "end": "10:00",
+                "feedPower": 4000,
+                "sort": 2
+            })
 
     # Validate dry run
     if args.dry_run:
