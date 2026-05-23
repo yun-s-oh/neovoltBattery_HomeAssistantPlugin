@@ -91,6 +91,18 @@ custom_components/bytewatt/
 - `diagnostics_mode`: Enable detailed logging (default: false)
 - `auto_reconnect_time`: Daily reconnect time (default: "03:30:00")
 
+## Recent Changes (May 2026)
+
+### Feed-In Strategy Endpoints & Test Automation
+- ✅ **New Feed-in Strategy Endpoints Added to Tests**:
+  - **GET**: `api/iterate/sysSet/getFeedStrategyList?id=` (retrieves battery feedCutoffSoc, poinv, precharge settings, and active schedules)
+  - **POST**: `api/iterate/sysSet/saveFeedStrategy` (saves grid feed-in schedules and configuration)
+- ✅ **Standalone PEP 8 Test Scripts**:
+  - [test_feed_strategy.py](file:///tests/test_feed_strategy.py) — Fetches and formats feed-in settings and active schedule tables.
+  - [test_save_feed_strategy.py](file:///tests/test_save_feed_strategy.py) — Builds dynamic DTO payloads to safely test and mutate/restore grid schedules.
+- ✅ **Intelligent Serial Number Lookup**: Added robust auto-discovery to automatically resolve system serial numbers (e.g., `25000SP265W00123`) to internal system IDs via the inverter list.
+- ✅ **Commit & Staging Workflows**: Integrated pre-commit validations and synchronized `.antigravity/` updates to the central commit guide.
+
 ## Recent Changes (December 2024)
 
 ### Technical Debt Cleanup

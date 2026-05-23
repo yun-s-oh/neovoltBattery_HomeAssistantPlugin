@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-05-23
+- Implemented standalone, PEP 8-compliant test scripts `tests/test_feed_strategy.py` and `tests/test_save_feed_strategy.py` for the new ByteWatt settings endpoints (`getFeedStrategyList` and `saveFeedStrategy`).
+- Integrated intelligent serial number resolution into both test scripts, allowing automatic lookup of system IDs from the connected inverter list by supplying serial numbers (e.g., `25000SP265W00123`).
+- Added support for `--action add-schedule` in `test_save_feed_strategy.py` to test adding multiple schedules with custom start/end times and power limits.
+- Validated live schedule additions on the ByteWatt server, successfully storing multiple configured feed-in time windows.
+- Restructured the commit workflow at `.agents/workflows/commit-changes.md` to specify pre-commit checks and synchronized `.antigravity/` documentation updates.
+
 ## 2026-05-22
 - Fixed an issue where "today" sensor values aggregated data across all inverters by passing the specific `sysSn` to the `/api/report/power/staticsByDay` API endpoint.
 - Created the `.agents/workflows/update-docs.md` workflow to standardize documentation and changelog updates.

@@ -30,6 +30,13 @@ Before staging or committing any files, ensure that the proposed changes are ful
      venv/bin/python tests/test_feed_strategy.py
      ```
 
+4. **Update Documentation in `.antigravity/`**:
+   - Before committing any codebase modifications or additions, you MUST synchronously update the appropriate documentation files located in `.antigravity/` to reflect the new repository state:
+     - [changelog.md](file:///.antigravity/logs/changelog.md) — Always record a clear entry of notable changes under the current date.
+     - [context.md](file:///.antigravity/context.md) — Update if introducing new endpoints, test scripts, services, config options, or architecture shifts.
+     - [instructions.md](file:///.antigravity/instructions.md) — Update if introducing new dev rules, skills, workflows, or project setups.
+     - [recovery_system.md](file:///.antigravity/recovery_system.md) — Update if modifying the background heartbeat coordinator, reconnect services, or recovery parameters.
+
 ---
 
 ## Commit Process
